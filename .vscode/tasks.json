@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ODB: Run on Phone",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\odb-run-on-phone.ps1"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "ODB: Logcat (ODB)",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}\\.vscode\\odb-logcat-app.ps1"
+      ],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "ODB: Unit tests",
+      "type": "shell",
+      "command": "${workspaceFolder}\\gradlew.bat",
+      "args": ["--no-daemon", "testDebugUnitTest"],
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# Gradle / build output
+.gradle/
+build/
+bin/
+!gradle/wrapper/gradle-wrapper.jar
+.kotlin/
+
+# Временные файлы настроек Claude Code
+.claude/settings.json.tmp.*
+
+# Локальные пути SDK — у каждого свои
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.cxx/
+
+# Подписи и артефакты
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Сессии с машины (VIN, реальные данные)
+sessions/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db
+.DS_Store

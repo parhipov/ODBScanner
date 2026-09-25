@@ -1,0 +1,70 @@
+package com.odbscanner.elm
+
+/** OBD/CAN request layer on top of the raw ELM327 driver. */
+class Obd(val elm: Elm327) {
+    /** 3 for 11-bit CAN, 8 for 29-bit. */
+    var headerChars = 3
+    var currentHeader: Int? = null
+        private set
+    var responseFilter: Int? = null
+        private set
+    /** Clone supports the "expected responses" digit after the request ("22F190 1"). */
+    var countDigit = false
+
+    suspend fun at(cmd: String, timeoutMs: Long = 1500) = elm.send(cmd, timeoutMs)
+
+    suspend fun request(hex: String, timeoutMs: Long = 1500, expectOne: Boolean = false): CanReply {
+        val cmd = if (expectOne && countDigit) hex + "1" else hex
+        val first = CanParser.parse(elm.send(cmd, timeoutMs), headerChars)
+        if (!first.garbled) return first
+        val second = CanParser.parse(elm.send(cmd, timeoutMs), headerChars)
+        return if (second.garbled && second.messages.size < first.messages.size) first else second
+    }
+
+    /** Header/filter/flow-control are non-default (needed only for GM USDT 0x24x → 0x64x). */
+    private var customRouting = false
+
+    /** Physical addressing to one module. Tolerates clones that don't know ATCRA. */
+    suspend fun target(req: Int, resp: Int) {
+        if (req in 0x7E0..0x7E7 && resp == req + 8) {
+            // Standard OBD ids: the default receive filter and automatic flow control already fit.
+            if (customRouting) resetRouting()
+            if (currentHeader != req) {
+                at("ATSH%03X".format(req))
+                currentHeader = req
+            }
+            return
+        }
+        customRouting = true
+        if (currentHeader != req) {
+            at("ATSH%03X".format(req))
+            at("ATFCSH%03X".format(req))
+            at("ATFCSD300000")
+            at("ATFCSM1")
+            currentHeader = req
+        }
+        if (responseFilter != resp) {
+            val r = at("ATCRA%03X".format(resp))
+            if (r.isUnknown) {
+                at("ATCF%03X".format(resp))
+                at("ATCM7FF")
+            }
+            responseFilter = resp
+        }
+    }
+
+    /** Back to functional OBD broadcast (7DF, all ECUs answer). */
+    suspend fun broadcast() {
+        if (customRouting) resetRouting()
+        if (currentHeader == 0x7DF) return
+        at("ATSH7DF")
+        currentHeader = 0x7DF
+    }
+
+    private suspend fun resetRouting() {
+        at("ATFCSM0")
+        at("ATAR")
+        responseFilter = null
+        customRouting = false
+    }
+}
