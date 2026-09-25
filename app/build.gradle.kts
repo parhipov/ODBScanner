@@ -12,8 +12,8 @@ android {
         applicationId = "com.odbscanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 6
+        versionName = "0.6"
     }
 
     buildTypes {
@@ -32,6 +32,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    applicationVariants.all {
+        val variant = this
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "ODBScanner_PavelArkhipov_${variant.versionName}.apk"
+        }
     }
 }
 

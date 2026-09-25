@@ -72,6 +72,24 @@ fun DtcScreen(m: ObdManager, v: VehicleInfo, busy: String?) {
             if (v.freeze.isEmpty()) Muted("нет")
             for (f in v.freeze) ReadingRow(f)
         }
+        item {
+            SectionTitle("Все блоки GM (\$A9)")
+            Muted("Полная память ошибок каждого блока на HS-CAN: ECM, TCM, ABS, BCM и др., включая коды без Check и тип отказа (как в GDS2). " +
+                "Только чтение. Сначала ищутся модули (~1 мин), дальше несколько секунд на блок. Зажигание включено, машина стоит.")
+            Row(Modifier.padding(8.dp)) {
+                Button(onClick = { m.readAllModulesDtc() }, enabled = busy == null) { Text("Прочитать все блоки") }
+            }
+            if (v.gmDtcStatus.isNotEmpty()) Muted(v.gmDtcStatus)
+            if (v.gmDtcTime > 0) Muted("Прочитано в ${fmt.format(Date(v.gmDtcTime))}")
+        }
+        for (r in v.gmDtcs) {
+            item(key = "gm${r.module.id}") {
+                SectionTitle("${r.module.name} · ${r.module.id}")
+                Muted(r.result)
+                for (c in r.codes) ValueRow(c.full, if (c.current) "активна" else "история", "", "${c.description} · ${c.flags}",
+                    if (c.current || c.mil) Bad else Warn)
+            }
+        }
     }
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },

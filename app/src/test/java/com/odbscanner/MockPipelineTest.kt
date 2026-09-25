@@ -85,6 +85,31 @@ class MockPipelineTest {
         assertEquals(2, o.request("0100").messages.size)
     }
 
+    /** \$A9 streams UUDT frames with raw formatting — afterwards normal requests must work again. */
+    @Test
+    fun readsGmDtcsFromAllModules() = runBlocking {
+        val o = open()
+        for (c in listOf("ATZ", "ATE0", "ATH1", "ATS1")) o.at(c)
+        val reader = com.odbscanner.gm.GmDtcReader(o) { println(it) }
+
+        val ecm = reader.read(GmModule(0x7E0, 0x7E8, "ECM", ""))
+        assertTrue(ecm.complete)
+        assertEquals(listOf("P0171 00", "P0304 00", "P0562 00"), ecm.codes.map { it.full })
+        assertTrue(ecm.codes[1].current && ecm.codes[1].mil)
+        assertTrue(!ecm.codes[0].current)
+
+        val bcm = reader.read(GmModule(0x241, 0x641, "BCM", ""))
+        assertEquals(listOf("B1325 03"), bcm.codes.map { it.full })
+
+        val abs = reader.read(GmModule(0x243, 0x643, "ABS", ""))
+        assertTrue(abs.codes.isEmpty())
+        assertTrue(abs.result.contains("не поддерживает"))
+
+        o.broadcast()
+        assertEquals(2, o.request("0100").messages.size)
+        assertNotNull(GmScanner(o) { println(it) }.readRaw(0x7E2, 0x7EA, "22", 0x1940))
+    }
+
     @Test
     fun fullPipelineAgainstMockCar() = runBlocking {
         val o = open()

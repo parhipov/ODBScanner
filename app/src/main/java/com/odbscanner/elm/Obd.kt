@@ -10,6 +10,8 @@ class Obd(val elm: Elm327) {
         private set
     /** Clone supports the "expected responses" digit after the request ("22F190 1"). */
     var countDigit = false
+    /** Adaptive timing command that worked at init — to restore after a fixed-timeout operation. */
+    var adaptiveTiming = "ATAT1"
 
     suspend fun at(cmd: String, timeoutMs: Long = 1500) = elm.send(cmd, timeoutMs)
 
@@ -51,6 +53,12 @@ class Obd(val elm: Elm327) {
             }
             responseFilter = resp
         }
+    }
+
+    /** Someone changed the adapter's filters behind our back: the next target/broadcast sets everything again. */
+    fun forgetRouting() {
+        customRouting = true
+        responseFilter = null
     }
 
     /** Back to functional OBD broadcast (7DF, all ECUs answer). */

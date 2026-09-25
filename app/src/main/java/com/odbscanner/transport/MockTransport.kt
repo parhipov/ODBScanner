@@ -73,7 +73,8 @@ class MockCar {
     private val busIds = mapOf(0x0C9 to 12, 0x0F1 to 25, 0x1E9 to 20, 0x1F5 to 25, 0x3E9 to 100, 0x4C1 to 500, 0x4D1 to 500, 0x52A to 1000)
 
     private fun busFrame(id: Int): String {
-        val rpm = (rpm() * 4).toInt()
+        // A burst is generated within a millisecond: jitter keeps the rpm bytes moving like on a car.
+        val rpm = (jitter(rpm()) * 4).toInt()
         val d = when (id) {
             0x0C9 -> listOf(0x80, rpm shr 8, rpm and 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00)
             0x3E9 -> List(8) { if (it < 2) Random.nextInt(0, 3) else 0 }
@@ -114,7 +115,7 @@ class MockCar {
         val hex = if (c.length % 2 == 1) c.dropLast(1) else c
         val req = IntArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16) }
         val delay = if (!protocolKnown) 1500L.also { protocolKnown = true } else 35L
-        if (!caf) return "NO DATA" to delay
+        if (!caf) return (rawRequest(req) ?: "NO DATA") to delay
         val targets = when (header) {
             0x7DF -> listOf(0x7E8, 0x7EA)
             0x7E0 -> listOf(0x7E8)
@@ -129,6 +130,26 @@ class MockCar {
             lines += frame(ecu, payload)
         }
         return (if (lines.isEmpty()) "NO DATA" else lines.joinToString("\r")) to delay
+    }
+
+    /**
+     * With ATCAF0 the request carries its own PCI byte. Only GMLAN \$A9 81 is simulated: a
+     * "response pending" on the USDT id, then one UUDT frame per DTC on 0x5xx and a zero code.
+     */
+    private fun rawRequest(r: IntArray): String? {
+        if (r.size < 4 || r[1] != 0xA9 || r[2] != 0x81) return null
+        val resp = when (header) { 0x7E0 -> 0x7E8; 0x7E2 -> 0x7EA; 0x241 -> 0x641; 0x243 -> 0x643; else -> return null }
+        fun raw(id: Int, vararg b: Int) = "%03X ".format(id) + (b.toList() + List(8 - b.size) { 0 }).joinToString(" ") { "%02X".format(it) }
+        // (DTC high, low, failure type, status); status 0xDA = active + Check, 0x18 = history.
+        val codes = when (header) {
+            0x7E0 -> stored.map { listOf(it shr 8, it and 0xFF, 0x00, if (it == 0x0304) 0xDA else 0x18) } + listOf(listOf(0x05, 0x62, 0x00, 0x18))
+            0x241 -> listOf(listOf(0x93, 0x25, 0x03, 0x18))
+            0x243 -> return raw(resp, 0x03, 0x7F, 0xA9, 0x11)
+            else -> emptyList()
+        }.filter { it[3] and r[3] != 0 }
+        val uudt = 0x500 or (resp and 0xFF)
+        return (listOf(raw(resp, 0x03, 0x7F, 0xA9, 0x78)) + codes.map { raw(uudt, 0x81, *it.toIntArray()) } + raw(uudt, 0x81, 0, 0, 0))
+            .joinToString("\r")
     }
 
     private fun at(c: String): String = when {

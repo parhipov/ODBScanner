@@ -8,6 +8,8 @@ import com.odbscanner.bus.BusSniffer
 import com.odbscanner.elm.Elm327
 import com.odbscanner.elm.Obd
 import com.odbscanner.gm.GmDid
+import com.odbscanner.gm.GmDtcReader
+import com.odbscanner.gm.GmDtcResult
 import com.odbscanner.gm.GmKnown
 import com.odbscanner.gm.GmModule
 import com.odbscanner.gm.GmScanner
@@ -83,6 +85,10 @@ data class VehicleInfo(
     val mode06: List<TestResult> = emptyList(),
     val mode06Time: Long = 0,
     val gmActive: List<GmDid> = emptyList(),
+    /** \$A9 DTCs of every GM module found on HS-CAN. */
+    val gmDtcs: List<GmDtcResult> = emptyList(),
+    val gmDtcTime: Long = 0,
+    val gmDtcStatus: String = "",
 ) {
     val supported01: Set<Int> get() = ecus.values.flatMap { it.pids01 }.toSet()
 }
@@ -220,6 +226,7 @@ class ObdManager(private val context: Context) {
         val dp = o.at("ATDP").lines.firstOrNull().orEmpty()
         if (proto !in 6..9) session?.note("WARNING: protocol $dpn is not CAN — parsing may fail")
         val aggressive = o.at("ATAT2").isOk
+        if (aggressive) o.adaptiveTiming = "ATAT2"
         o.broadcast()
         step("Проверка мульти-PID запросов…")
         val multi = o.request("010C0D").messages.any { m ->
@@ -568,6 +575,10 @@ class ObdManager(private val context: Context) {
         val lph = ecuRate ?: maf?.let { it / (14.7 * lambda) * 3600.0 / 745.0 }
         add("calc.lph", "Расход топлива${if (ecuRate == null) " (по MAF)" else ""}", lph, "л/ч", 2)
         if (lph != null && speed != null && speed >= 10) add("calc.l100", "Мгновенный расход", lph / speed * 100, "л/100км", 1)
+        // 6L50: 4.06 / 2.37 / 1.55 / 1.16 / 0.85 / 0.67 — a ratio drifting in a steady gear means slip.
+        val input = r.pick("22.1941")?.value
+        val output = r.pick("22.1942")?.value
+        if (input != null && output != null && output >= 200) add("calc.gearRatio", "Передаточное отношение АКПП (вход/выход)", input / output, "", 2)
         if (out.isNotEmpty()) publish(out)
     }
 
@@ -621,12 +632,63 @@ class ObdManager(private val context: Context) {
 
     fun rediscover() = launchOp("Повторный опрос") { discover(it) }
 
-    fun probeModules() = launchOp("Поиск модулей") { o ->
+    fun probeModules() = launchOp("Поиск модулей") { findModules(it) }
+
+    /** Probes the HS-CAN addresses, then reads each module's identification (\$1A). */
+    private suspend fun findModules(o: Obd, progress: (String) -> Unit = {}): List<GmModule> {
         _scan.update { it.copy(running = true, progress = 0f, status = "Поиск модулей…") }
-        val found = GmScanner(o) { session?.note(it) }.probeModules { p, s -> _scan.update { it.copy(progress = p, status = s) } }
+        val sc = GmScanner(o) { session?.note(it) }
+        val found = sc.probeModules { p, s -> _scan.update { it.copy(progress = p * 0.8f, status = s) }; progress(s) }
         _scan.update { it.copy(modules = found, status = "Найдено модулей: ${found.size}") }
         session?.report("GM: найденные модули", found.joinToString("\n") { "  %03X→%03X %s (%s)".format(it.req, it.resp, it.name, it.answeredTo) }
             .ifEmpty { "нет" })
+        val ids = mutableListOf<ScanHit>()
+        for ((i, mod) in found.withIndex()) {
+            val s = "Идентификация ${mod.name} (${i + 1} из ${found.size})…"
+            _scan.update { it.copy(progress = 0.8f + 0.2f * i / found.size, status = s) }
+            progress(s)
+            sc.identify(mod) { h ->
+                ids += h
+                session?.scanHit(h.req, h.resp, h.service, h.didHex, h.data)
+                _scan.update { st -> st.copy(hits = (st.hits.filter { it.key != h.key } + h)) }
+            }
+        }
+        o.broadcast()
+        _scan.update { it.copy(running = false, status = "Найдено модулей: ${found.size}") }
+        session?.report("GM: идентификация модулей (\$1A)", found.joinToString("\n\n") { mod ->
+            "${mod.name} [${mod.id}]\n" + ids.filter { it.req == mod.req }.joinToString("\n") { h ->
+                "  1A %s %-26s %s".format(h.didHex, h.label.orEmpty(), h.partNumber?.toString() ?: if (h.looksLikeText) "«${h.ascii}»" else h.hex)
+            }.ifEmpty { "  нет ответа" }
+        }.ifEmpty { "нет модулей" })
+        return found
+    }
+
+    /**
+     * Full DTC memory of every GM module (\$A9). Finds the modules first if that wasn't done yet.
+     * Read only — nothing is cleared.
+     */
+    fun readAllModulesDtc() = launchOp("Ошибки всех блоков") { o ->
+        fun status(s: String) = _vehicle.update { it.copy(gmDtcStatus = s) }
+        val modules = _scan.value.modules.ifEmpty { findModules(o) { status(it) } }
+        if (modules.isEmpty()) {
+            status("Модули не найдены")
+            return@launchOp
+        }
+        val reader = GmDtcReader(o) { session?.note(it) }
+        val out = mutableListOf<GmDtcResult>()
+        for ((i, mod) in modules.withIndex()) {
+            status("Ошибки ${mod.name} (${i + 1} из ${modules.size})…")
+            out += reader.read(mod)
+            _vehicle.update { it.copy(gmDtcs = out.toList()) }
+        }
+        o.broadcast()
+        val total = out.sumOf { it.codes.size }
+        _vehicle.update { it.copy(gmDtcs = out, gmDtcTime = System.currentTimeMillis(), gmDtcStatus = "Блоков: ${out.size}, кодов: $total") }
+        session?.report("GM: ошибки всех блоков (\$A9 81 %02X)".format(GmDtcReader.MASK), out.joinToString("\n\n") { r ->
+            "${r.module.name} [${r.module.id}] — ${r.result}" + r.codes.joinToString("") { c ->
+                "\n  %s  статус %02X (%s)  %s".format(c.full, c.status, c.flags, c.description)
+            }
+        })
     }
 
     fun scanModule(module: GmModule, service: String, range: IntRange) = launchOp("Скан ${module.id} $service") { o ->

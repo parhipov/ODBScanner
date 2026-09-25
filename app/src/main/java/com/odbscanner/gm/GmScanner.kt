@@ -35,6 +35,26 @@ class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
         return found
     }
 
+    /**
+     * Reads the identification \$1A DIDs of a module (name, programming date, software and part
+     * numbers) — what's needed to look up bulletins and calibration updates.
+     */
+    suspend fun identify(module: GmModule, onHit: (ScanHit) -> Unit) {
+        obd.target(module.req, module.resp)
+        var silent = 0
+        for (did in IDENTITY) {
+            currentCoroutineContext().ensureActive()
+            val r = read(module, "1A", did)
+            if (r == null) {
+                if (++silent >= 3) return
+                continue
+            }
+            silent = 0
+            if (r.first == null && r.second == 0x11) return
+            r.first?.let { onHit(ScanHit(module.req, module.resp, "1A", did, it)) }
+        }
+    }
+
     /** Detects whether this clone supports the response-count digit (big speedup for scans). */
     suspend fun detectCountDigit(module: GmModule) {
         obd.target(module.req, module.resp)
@@ -107,4 +127,8 @@ class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
     }
 
     private fun fmtDid(service: String, did: Int) = if (service == "1A") "%02X".format(did) else "%04X".format(did)
+
+    companion object {
+        val IDENTITY = listOf(0x97, 0x99, 0xB4, 0xC0) + (0xC1..0xC6) + listOf(0xCB, 0xCC)
+    }
 }
