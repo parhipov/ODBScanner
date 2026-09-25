@@ -55,6 +55,13 @@ class Obd(val elm: Elm327) {
         }
     }
 
+    /** After ATZ the adapter is back to defaults (header 7DF, no filters). */
+    fun resetState() {
+        currentHeader = null
+        responseFilter = null
+        customRouting = false
+    }
+
     /** Someone changed the adapter's filters behind our back: the next target/broadcast sets everything again. */
     fun forgetRouting() {
         customRouting = true

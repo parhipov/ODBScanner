@@ -55,10 +55,11 @@ fun AppTheme(content: @Composable () -> Unit) {
 
 /** Big dashboard tile. */
 @Composable
-fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: Color? = null) {
+fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: Color? = null, container: Color? = null, onClick: () -> Unit = {}) {
     Card(
+        onClick = onClick,
         modifier = modifier.padding(4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = container ?: MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.secondary,
@@ -93,6 +94,16 @@ fun SectionTitle(text: String) {
 /** Compact "name ........ value unit" row. */
 @Composable
 fun ValueRow(name: String, value: String, unit: String = "", sub: String? = null, color: Color? = null) {
+    // A long text value next to the name squeezes the name column to nothing: stack them instead.
+    if (value.length > 16) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp)) {
+            Text(name, style = MaterialTheme.typography.bodyMedium)
+            if (sub != null) Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            Text(value + if (unit.isNotEmpty()) " $unit" else "", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold,
+                color = color ?: MaterialTheme.colorScheme.onSurface)
+        }
+        return
+    }
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyMedium)

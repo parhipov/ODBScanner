@@ -27,8 +27,8 @@ object GmKnown {
         add(did(TCM, 0x295A, "Темп. масла АКПП (фильтр.)", "°C", 0, MAYBE, "other") { it[0] - 40.0 })
         add(did(TCM, 0x1991, "Проскальзывание гидротрансформатора", "об/мин", 0, OK, "main") { s16(it) / 8.0 })
         // ×0.125 checked on the car: 580 at idle in P with engine 615 and TCC slip 30.
-        add(did(TCM, 0x1941, "Обороты входного вала АКПП", "об/мин", 0, OK, "other") { ab(it) * 0.125 })
-        add(did(TCM, 0x1942, "Обороты выходного вала АКПП", "об/мин", 0, MAYBE, "other") { ab(it) * 0.125 })
+        add(did(TCM, 0x1941, "Обороты входного вала АКПП", "об/мин", 0, OK, "main") { ab(it) * 0.125 })
+        add(did(TCM, 0x1942, "Обороты выходного вала АКПП", "об/мин", 0, MAYBE, "main") { ab(it) * 0.125 })
         add(did(TCM, 0x199A, "Передача АКПП", "", 0, MAYBE, "main") { it[0].toDouble() })
         add(did(TCM, 0x199E, "Ток соленоида давления (факт)", "А", 2, MAYBE, "other") { it[0] * 0.0195 })
         add(did(TCM, 0x199F, "Ток соленоида давления (задан.)", "А", 2, MAYBE, "other") { it[0] * 0.0195 })

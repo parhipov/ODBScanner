@@ -12,6 +12,7 @@ import com.odbscanner.gm.GmDtcReader
 import com.odbscanner.gm.GmDtcResult
 import com.odbscanner.gm.GmKnown
 import com.odbscanner.gm.GmModule
+import com.odbscanner.gm.GmModules
 import com.odbscanner.gm.GmScanner
 import com.odbscanner.gm.ScanHit
 import com.odbscanner.obd.DtcCode
@@ -173,6 +174,7 @@ class ObdManager(private val context: Context) {
                 obd = o
                 _conn.value = ConnState.Connected(transport.name)
                 opMutex.withLock { discover(o) }
+                opMutex.withLock { autoGmDtcs(o) }
                 pollLoop(o)
             } catch (e: CancellationException) {
                 s.note("disconnect requested")
@@ -202,11 +204,18 @@ class ObdManager(private val context: Context) {
 
     // ---------------------------------------------------------------- init
 
+    /** Protocol that worked at init ("ATSP6") — to come back quickly after a re-init. */
+    private var protocolCmd = "ATSP0"
+
+    private suspend fun baseSetup(o: Obd) {
+        for (c in listOf("ATE0", "ATL0", "ATS1", "ATH1", "ATCAF1", "ATAT1")) o.at(c)
+    }
+
     private suspend fun initAdapter(o: Obd, name: String) {
         step("Сброс адаптера (ATZ)…")
         o.at("ATZ", 5000)
         delay(300)
-        for (c in listOf("ATE0", "ATL0", "ATS1", "ATH1", "ATCAF1", "ATAT1")) o.at(c)
+        baseSetup(o)
         val ver = o.at("ATI").lines.lastOrNull().orEmpty()
         val desc = o.at("AT@1").lines.firstOrNull().orEmpty()
         o.at("ATSP0")
@@ -223,6 +232,7 @@ class ObdManager(private val context: Context) {
         val dpn = o.at("ATDPN").lines.firstOrNull().orEmpty()
         val proto = dpn.trimStart('A', 'a').toIntOrNull(16) ?: 0
         o.headerChars = if (proto == 7 || proto == 9) 8 else 3
+        if (proto != 0) protocolCmd = "ATSP%X".format(proto)
         val dp = o.at("ATDP").lines.firstOrNull().orEmpty()
         if (proto !in 6..9) session?.note("WARNING: protocol $dpn is not CAN — parsing may fail")
         val aggressive = o.at("ATAT2").isOk
@@ -640,6 +650,7 @@ class ObdManager(private val context: Context) {
         val sc = GmScanner(o) { session?.note(it) }
         val found = sc.probeModules { p, s -> _scan.update { it.copy(progress = p * 0.8f, status = s) }; progress(s) }
         _scan.update { it.copy(modules = found, status = "Найдено модулей: ${found.size}") }
+        if (found.isNotEmpty()) prefs.edit().putString(modulesPrefKey(), found.joinToString(",") { "%03X:%03X".format(it.req, it.resp) }).apply()
         session?.report("GM: найденные модули", found.joinToString("\n") { "  %03X→%03X %s (%s)".format(it.req, it.resp, it.name, it.answeredTo) }
             .ifEmpty { "нет" })
         val ids = mutableListOf<ScanHit>()
@@ -668,11 +679,66 @@ class ObdManager(private val context: Context) {
      * Read only — nothing is cleared.
      */
     fun readAllModulesDtc() = launchOp("Ошибки всех блоков") { o ->
-        fun status(s: String) = _vehicle.update { it.copy(gmDtcStatus = s) }
-        val modules = _scan.value.modules.ifEmpty { findModules(o) { status(it) } }
+        readGmDtcs(o) { s -> _vehicle.update { it.copy(gmDtcStatus = s) } }
+        ensureAdapter(o)
+    }
+
+    /**
+     * Right after connecting: the same as the button, but it must never break the session —
+     * any failure is only logged, and the adapter is checked (re-initialised if needed) afterwards.
+     */
+    private suspend fun autoGmDtcs(o: Obd) {
+        try {
+            readGmDtcs(o) { s -> step(s); _vehicle.update { it.copy(gmDtcStatus = s) } }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            session?.note("GM DTC (auto) failed: ${e.stackTraceToString()}")
+            _vehicle.update { it.copy(gmDtcStatus = "Не удалось прочитать: ${e.message}") }
+        } finally {
+            step("")
+        }
+        ensureAdapter(o)
+    }
+
+    /** Normal OBD must answer after the raw-frame trick; if not — full re-init of the adapter. */
+    private suspend fun ensureAdapter(o: Obd) {
+        o.broadcast()
+        if (!o.request("0100", 3000).noData) return
+        session?.note("adapter does not answer after GM DTC read — re-init")
+        o.at("ATZ", 5000)
+        delay(300)
+        baseSetup(o)
+        o.at(o.adaptiveTiming)
+        o.at(protocolCmd)
+        o.resetState()
+        o.broadcast()
+        if (o.request("0100", 5000).noData) throw IOException("Адаптер не восстановился после чтения ошибок GM — переподключитесь")
+        session?.note("adapter re-init OK")
+    }
+
+    private fun modulesPrefKey() = "gm_modules_" + (_vehicle.value.vin ?: "")
+
+    /** Modules found in an earlier session of this car — saves a minute of probing on every connect. */
+    private fun savedModules(): List<GmModule> = prefs.getString(modulesPrefKey(), null).orEmpty()
+        .split(',').mapNotNull { p ->
+            val (req, resp) = p.split(':').takeIf { it.size == 2 }?.map { it.toIntOrNull(16) } ?: return@mapNotNull null
+            if (req == null || resp == null) null else GmModule(req, resp, GmModules.name(req), "из прошлой сессии")
+        }
+
+    private suspend fun readGmDtcs(o: Obd, status: (String) -> Unit) {
+        var modules = _scan.value.modules
+        if (modules.isEmpty()) {
+            modules = savedModules()
+            if (modules.isNotEmpty()) {
+                session?.note("GM: modules from an earlier session: ${modules.joinToString { it.id }}")
+                _scan.update { it.copy(modules = modules) }
+            }
+        }
+        if (modules.isEmpty()) modules = findModules(o, status)
         if (modules.isEmpty()) {
             status("Модули не найдены")
-            return@launchOp
+            return
         }
         val reader = GmDtcReader(o) { session?.note(it) }
         val out = mutableListOf<GmDtcResult>()
