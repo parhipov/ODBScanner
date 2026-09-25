@@ -76,10 +76,10 @@ fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: 
                     Text(r.unit, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 5.dp))
                 }
             }
-            if (r?.value != null && r.min != null && r.max != null && r.min != r.max) {
-                Text("мин ${Reading.fmt(r.min, r.decimals)} · макс ${Reading.fmt(r.max, r.decimals)}",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
+            // Always reserve the min/max line so tiles in a grid row keep the same height.
+            val range = if (r?.value != null && r.min != null && r.max != null && r.min != r.max)
+                "мин ${Reading.fmt(r.min, r.decimals)} · макс ${Reading.fmt(r.max, r.decimals)}" else " "
+            Text(range, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
         }
     }
 }
