@@ -8,12 +8,22 @@ android {
     namespace = "com.odbscanner"
     compileSdk = 35
 
+    signingConfigs {
+        // Same key on every machine: a phone refuses an update signed by a different debug key.
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.odbscanner"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7"
+        versionCode = 8
+        versionName = "0.8"
     }
 
     buildTypes {

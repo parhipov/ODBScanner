@@ -40,6 +40,37 @@ class GmDtcReader(private val obd: Obd, private val note: (String) -> Unit) {
 
     suspend fun read(module: GmModule, mask: Int = MASK): GmDtcResult {
         val uudt = 0x500 or (module.resp and 0xFF)
+        val codes = mutableListOf<GmDtc>()
+        var complete = false
+        var nrc: Int? = null
+        var bufferFull = false
+        // Each frame is one whole code, so a garbled read loses codes but never invents them:
+        // on the car a second read of the BCM lost 3 of 5 codes and looked complete. Read again, merge.
+        for (attempt in 1..2) {
+            val a = readOnce(module, uudt, mask)
+            a.codes.forEach { if (it !in codes) codes += it }
+            nrc = nrc ?: a.nrc
+            bufferFull = bufferFull || a.bufferFull
+            if (a.complete && a.clean) { complete = true; break }
+            // Refusal or silence — asking again won't help.
+            if (a.clean && a.codes.isEmpty() && !a.bufferFull) break
+            note("GM DTC %s: попытка %d — %s, повтор".format(module.id, attempt, if (a.clean) "нет конца списка" else "кадры искажены"))
+        }
+        val result = when {
+            codes.isNotEmpty() -> "кодов: ${codes.size}" + if (complete) "" else " (часть кадров потеряна — может быть не всё)"
+            complete -> "нет кодов"
+            nrc == 0x11 || nrc == 0x12 -> "не поддерживает \$A9 (отказ %02X)".format(nrc)
+            nrc != null -> "отказ %02X".format(nrc)
+            bufferFull -> "адаптер переполнен (BUFFER FULL)"
+            else -> "нет ответа"
+        }
+        note("GM DTC %s: %s %s".format(module.id, result, codes.joinToString(" ") { it.full }))
+        return GmDtcResult(module, codes, result, complete)
+    }
+
+    private class Attempt(val codes: List<GmDtc>, val complete: Boolean, val nrc: Int?, val clean: Boolean, val bufferFull: Boolean)
+
+    private suspend fun readOnce(module: GmModule, uudt: Int, mask: Int): Attempt {
         obd.target(module.req, module.resp)
         obd.forgetRouting()
         // "X" = any digit: 7E8 and 5E8 (or 641 and 541) both pass. Clones without it: UUDT only.
@@ -65,6 +96,7 @@ class GmDtcReader(private val obd: Obd, private val note: (String) -> Unit) {
         val codes = mutableListOf<GmDtc>()
         var complete = false
         var nrc: Int? = null
+        val lost = raw.lines.filter { it != "NO DATA" && BusSniffer.parse(listOf(it)).isEmpty() }
         for (f in BusSniffer.parse(raw.lines)) {
             val d = f.data
             when {
@@ -76,16 +108,7 @@ class GmDtcReader(private val obd: Obd, private val note: (String) -> Unit) {
                 f.id == module.resp && d.size >= 4 && d[1] == 0x7F && d[2] == 0xA9 -> if (d[3] != 0x78) nrc = d[3]
             }
         }
-        val result = when {
-            codes.isNotEmpty() -> "кодов: ${codes.size}" + if (complete) "" else " (конец списка не пришёл — может быть не всё)"
-            complete -> "нет кодов"
-            nrc == 0x11 || nrc == 0x12 -> "не поддерживает \$A9 (отказ %02X)".format(nrc)
-            nrc != null -> "отказ %02X".format(nrc)
-            raw.lines.any { it.contains("BUFFER FULL") } -> "адаптер переполнен (BUFFER FULL)"
-            else -> "нет ответа"
-        }
-        note("GM DTC %s: %s %s".format(module.id, result, codes.joinToString(" ") { it.full }))
-        return GmDtcResult(module, codes, result, complete)
+        return Attempt(codes, complete, nrc, lost.isEmpty(), raw.lines.any { it.contains("BUFFER FULL") })
     }
 
     companion object {

@@ -2,8 +2,10 @@ package com.odbscanner.gm
 
 import com.odbscanner.elm.CanReply
 import com.odbscanner.elm.Obd
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 /**
  * Read-only exploration of GM modules on HS-CAN: $1A ReadDataByIdentifier (GMLAN) and
@@ -108,11 +110,26 @@ class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
     suspend fun read(module: GmModule, service: String, did: Int): Pair<IntArray?, Int>? {
         val req = service + fmtDid(service, did)
         var reply: CanReply = obd.request(req, timeoutMs = 600, expectOne = true)
-        var msg = reply.from(module.resp).firstOrNull()
+        var msg = answer(reply, module.resp)
         // Truncated multi-frame with the count digit → retry without it.
         if (obd.countDigit && reply.errors.any { it.startsWith("ISO-TP") }) {
             reply = obd.request(req, timeoutMs = 1200)
-            msg = reply.from(module.resp).firstOrNull()
+            msg = answer(reply, module.resp)
+        }
+        // Only "7F xx 78" (response pending) arrived — the ECM on the car does this for $1A B4:
+        // the real answer comes after the prompt and is lost. Ask again with a longer wait.
+        if (msg == null && reply.from(module.resp).any { it.nrc == 0x78 }) {
+            obd.at("ATAT0")
+            obd.at("ATSTFF")
+            try {
+                reply = obd.request(req, timeoutMs = 3000)
+                msg = answer(reply, module.resp)
+            } finally {
+                withContext(NonCancellable) {
+                    runCatching { obd.at("ATST32") }
+                    runCatching { obd.at(obd.adaptiveTiming) }
+                }
+            }
         }
         msg ?: return null
         if (msg.isNegative) return null to msg.nrc
@@ -120,6 +137,9 @@ class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
         if (msg.service != service.toInt(16) + 0x40 || msg.data.size < echo) return null to -1
         return msg.data.copyOfRange(echo, msg.data.size) to 0
     }
+
+    /** First real answer: "7F xx 78" only means "wait", the reply may follow in the same read. */
+    private fun answer(reply: CanReply, resp: Int) = reply.from(resp).firstOrNull { it.nrc != 0x78 }
 
     suspend fun readRaw(req: Int, resp: Int, service: String, did: Int): IntArray? {
         obd.target(req, resp)

@@ -53,9 +53,10 @@ fun AppTheme(content: @Composable () -> Unit) {
     )
 }
 
-/** Big dashboard tile. */
+/** Big dashboard tile. [note] replaces the min/max line (e.g. to mark a sample value). */
 @Composable
-fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: Color? = null, container: Color? = null, onClick: () -> Unit = {}) {
+fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: Color? = null, container: Color? = null,
+              note: String? = null, onClick: () -> Unit = {}) {
     Card(
         onClick = onClick,
         modifier = modifier.padding(4.dp),
@@ -78,7 +79,7 @@ fun ValueTile(label: String, r: Reading?, modifier: Modifier = Modifier, color: 
                 }
             }
             // Always reserve the min/max line so tiles in a grid row keep the same height.
-            val range = if (r?.value != null && r.min != null && r.max != null && r.min != r.max)
+            val range = note ?: if (r?.value != null && r.min != null && r.max != null && r.min != r.max)
                 "мин ${Reading.fmt(r.min, r.decimals)} · макс ${Reading.fmt(r.max, r.decimals)}" else " "
             Text(range, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1)
         }

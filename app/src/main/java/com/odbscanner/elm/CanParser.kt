@@ -53,6 +53,13 @@ object CanParser {
                 body = compact
             }
             if (body.length % 2 != 0 || body.isEmpty()) { errors += line; continue }
+            if (!wellSpaced(line, headerChars)) {
+                // Clone dropped characters mid-line ("7E8 22 3335 20 31 00"): bytes are shifted.
+                errors += CORRUPT + " от %03X (искажённая строка «%s»)".format(header, line)
+                asm.remove(header)
+                corrupted += header
+                continue
+            }
             val bytes = IntArray(body.length / 2) { body.substring(it * 2, it * 2 + 2).toInt(16) }
             val pci = bytes[0] shr 4
             when (pci) {
@@ -63,7 +70,7 @@ object CanParser {
                     if (header !in order) order += header
                 }
                 1 -> {
-                    if (bytes.size < 2) { errors += line; continue }
+                    if (bytes.size < 8) { errors += line; continue }
                     val len = ((bytes[0] and 0x0F) shl 8) or bytes[1]
                     asm[header] = Assembly(len).also { it.add(bytes, 2) }
                     corrupted -= header
@@ -76,6 +83,12 @@ object CanParser {
                         !a.nextSeq(bytes[0] and 0x0F) -> {
                             // Old clones drop frames on long replies; shifted data is worse than none.
                             errors += CORRUPT + " от %03X (кадр %X, ждали %X)".format(header, bytes[0] and 0x0F, a.expectedSeq)
+                            asm.remove(header)
+                            corrupted += header
+                        }
+                        // Only the last consecutive frame may be short; a short one mid-message lost bytes.
+                        bytes.size < 8 && a.size + bytes.size - 1 < a.expected -> {
+                            errors += CORRUPT + " от %03X (кадр %X короткий)".format(header, bytes[0] and 0x0F)
                             asm.remove(header)
                             corrupted += header
                         }
@@ -98,6 +111,14 @@ object CanParser {
         }
         val sorted = done.sortedBy { order.indexOf(it.header).let { i -> if (i < 0) Int.MAX_VALUE else i } }
         return CanReply(sorted, errors, reply.text, reply.timedOut)
+    }
+
+    /** With spaces on (ATS1) every byte is exactly two digits; the 11-bit header is three. */
+    private fun wellSpaced(line: String, headerChars: Int): Boolean {
+        val t = line.trim().split(' ').filter { it.isNotEmpty() }
+        if (t.size < 2) return true
+        val bytesFrom = if (headerChars == 3 && t[0].length == 3) 1 else 0
+        return t.drop(bytesFrom).all { it.length == 2 }
     }
 
     private fun Char.isHexDigitChar() = this in '0'..'9' || this in 'A'..'F' || this in 'a'..'f'

@@ -58,6 +58,44 @@ class MockPipelineTest {
         assertTrue(reply.garbled)
     }
 
+    /** Real reply (2026-09-25 19:08:33): clone dropped "64 80" and glued "3335" — baro came out 53 kPa. */
+    @Test
+    fun dropsBadlySpacedFrame() {
+        val raw = "7EA 04 41 42 39 09\r7E8 10 0F 41 42 39 E2 10 06\r7E8 21 3A 0E 6F 2F FE 46 34\r7E8 22 3335 20 31 00"
+        val reply = CanParser.parse(ElmReply("0142100E2F4633", raw, false), 3)
+        assertEquals(listOf(0x7EA), reply.messages.map { it.header })
+        assertTrue(reply.garbled)
+    }
+
+    /** Real reply (19:09:27): frame "7E8 21 21 04" lost 5 bytes — "distance with MIL on" came out 1246 km. */
+    @Test
+    fun dropsShortMiddleFrame() {
+        val raw = listOf(
+            "7EA 10 11 41 01 00 04 00 00", "7EA 21 21 00 00 30 70 31 04", "7E8 10 14 41 01 00 05 85 05",
+            "7EA 22 E6 42 37 F8 AA AA AA", "7E8 21 21 04", "7E8 22 DE 42 38 3A 03 01 01",
+        ).joinToString("\r")
+        val reply = CanParser.parse(ElmReply("01012130314203", raw, false), 3)
+        assertEquals(listOf(0x7EA), reply.messages.map { it.header })
+        assertTrue(reply.garbled)
+    }
+
+    /** The CTS ECM answers PIDs 56/58 with one byte, not two. */
+    @Test
+    fun splitsMultiPidWithShortTrimPids() {
+        val a = Pids.splitMulti(intArrayOf(0x41, 0x4A, 0x34, 0x4C, 0x19, 0x56, 0x80, 0x58, 0x80), listOf(0x4A, 0x4C, 0x56, 0x58))
+        assertEquals(listOf(0x4A, 0x4C, 0x56, 0x58), a.map { it.first })
+        assertEquals(listOf(1, 1, 1, 1), a.map { it.second.size })
+        val b = Pids.splitMulti(
+            intArrayOf(0x41, 0x07, 0x80, 0x08, 0x80, 0x09, 0x80, 0x58, 0x80, 0x01, 0x00, 0x05, 0x85, 0x05),
+            listOf(0x07, 0x08, 0x09, 0x58, 0x01),
+        )
+        assertEquals(listOf(0x07, 0x08, 0x09, 0x58, 0x01), b.map { it.first })
+        assertEquals(listOf(0x00, 0x05, 0x85, 0x05), b.last().second.toList())
+        // Standard two-byte form still works.
+        val c = Pids.splitMulti(intArrayOf(0x41, 0x56, 0x80, 0x7F, 0x0C, 0x10, 0x00), listOf(0x56, 0x0C))
+        assertEquals(listOf(2, 2), c.map { it.second.size })
+    }
+
     /** Listening must leave the adapter exactly as usable as before — and survive a cancel mid-way. */
     @Test
     fun busListeningRestoresAdapter() = runBlocking {

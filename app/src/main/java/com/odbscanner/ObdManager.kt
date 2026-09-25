@@ -271,7 +271,7 @@ class ObdManager(private val context: Context) {
         }
         _vehicle.update { v -> v.copy(ecus = pids.mapValues { (h, p) -> EcuInfo(h, p) }) }
         session?.report("Поддерживаемые PID (Mode 01)", pids.entries.joinToString("\n\n") { (h, p) ->
-            "${ecuName(h)} [%03X] — ${p.size} шт.\n".format(h) +
+            "${ecuName(h)} [%03X] — ${p.count { !Pids.isBitmask(it) }} шт.\n".format(h) +
                 p.filter { !Pids.isBitmask(it) }.sorted().joinToString("\n") { "  01 %02X  %s".format(it, Pids.name(it)) }
         })
 
@@ -317,7 +317,19 @@ class ObdManager(private val context: Context) {
         val info = mutableMapOf<Int, MutableMap<Int, String>>()
         for (t in wanted.filter { it in listOf(0x02, 0x04, 0x06, 0x08, 0x0A, 0x0B, 0x0D) }.sorted()) {
             val rr = o.request("09%02X".format(t), 4000)
-            for (m in rr.messages) {
+            var msgs = rr.messages
+            // ECM and TCM both stream long CALID lists at once and the clone overflows (BUFFER FULL,
+            // lost frames): ask each ECU on its own id instead of taking the truncated text.
+            if (rr.errors.isNotEmpty() && o.headerChars == 3) {
+                val heads = (types.keys + rr.messages.map { it.header }).filter { it in 0x7E8..0x7EF }.toSet()
+                msgs = heads.sorted().mapNotNull { h ->
+                    o.target(h - 8, h)
+                    val p = o.request("09%02X".format(t), 4000)
+                    p.from(h).firstOrNull()?.takeIf { p.errors.isEmpty() } ?: rr.from(h).firstOrNull()
+                }
+                o.broadcast()
+            }
+            for (m in msgs) {
                 if (m.data.size < 3 || m.data[0] != 0x49 || m.data[1] != t) continue
                 info.getOrPut(m.header) { mutableMapOf() }[t] = Mode09.decode(m.data)
             }
@@ -329,7 +341,7 @@ class ObdManager(private val context: Context) {
             v.copy(vin = vin, ecus = ecus)
         }
         session?.report("Mode 09", info.entries.joinToString("\n\n") { (h, i) ->
-            "${ecuName(h)} [%03X]\n".format(h) + i.entries.joinToString("\n") { (t, s) -> "  ${Mode09.name(t)}: $s" }
+            "${ecuName(h)} [%03X]\n".format(h) + i.entries.joinToString("\n") { (t, s) -> "  ${Mode09.name(t)}: ${s.replace("\n", "\n    ")}" }
         }.ifEmpty { "нет ответа" })
     }
 
@@ -502,14 +514,7 @@ class ObdManager(private val context: Context) {
             val r = o.request("01" + chunk.joinToString("") { "%02X".format(it) }, POLL_TIMEOUT)
             for (m in r.messages) {
                 if (m.service != 0x41) continue
-                var i = 1
-                while (i < m.data.size) {
-                    val pid = m.data[i]
-                    val len = Pids.byPid[pid]?.len ?: break
-                    if (i + 1 + len > m.data.size) break
-                    out += Pids.decode(m.header, "01", pid, m.data.copyOfRange(i + 1, i + 1 + len))
-                    i += 1 + len
-                }
+                for ((pid, d) in Pids.splitMulti(m.data, chunk)) out += Pids.decode(m.header, "01", pid, d)
             }
         }
         for (pid in single) {

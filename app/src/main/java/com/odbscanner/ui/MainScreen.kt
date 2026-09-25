@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.odbscanner.VehicleInfo
+import com.odbscanner.gm.GmKnown
 import com.odbscanner.obd.Reading
 import com.odbscanner.obd.pick
 
@@ -79,11 +80,14 @@ fun MainScreen(r: Map<String, Reading>, v: VehicleInfo) {
     val mil = r.pick("01.01.MIL")?.value
     val dtcCount = r.pick("01.01.DTC")?.value?.toInt()
     val gmCodes = v.gmDtcs.flatMap { it.codes }
-    // Card help: (label, reading key) — the dialog shows the live value.
-    var help by remember { mutableStateOf<Pair<String, String>?>(null) }
-    help?.let { (label, key) -> r[key]?.let { CardHelpDialog(label, it) { help = null } } }
+    // Card help: (label, reading) — the dialog shows the live value when there is one.
+    var help by remember { mutableStateOf<Pair<String, Reading>?>(null) }
+    help?.let { (label, h) -> CardHelpDialog(label, r[h.key] ?: h, sample = r[h.key] == null) { help = null } }
+    // Before the first value arrives (no connection yet) show every card empty, so the help can be read offline.
+    val offline = r.isEmpty()
     val sections = SECTIONS.map { s ->
-        s to s.items.mapNotNull { (k, label) ->
+        s to if (offline) s.items.distinctBy { it.second }.map { (k, label) -> label to placeholder(k, label) }
+        else s.items.mapNotNull { (k, label) ->
             val reading = if (k.contains(':')) r[k] else r.pick(k)
             reading?.let { label to it }
         }
@@ -95,6 +99,7 @@ fun MainScreen(r: Map<String, Reading>, v: VehicleInfo) {
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             when {
+                offline -> Muted("Нет данных — подключитесь к адаптеру на вкладке «Связь». Нажмите на карточку, чтобы прочитать, что это за параметр.")
                 mil == 1.0 -> Hint("Check Engine горит · ошибок в памяти: ${dtcCount ?: "?"} — см. вкладку «Ошибки»", Bad)
                 (dtcCount ?: 0) > 0 || v.dtcs.isNotEmpty() -> Hint("Есть коды ошибок: ${v.dtcs.size} — см. вкладку «Ошибки»", Warn)
                 v.step.isNotEmpty() -> Hint("Опрос автомобиля: ${v.step}", Good)
@@ -108,10 +113,11 @@ fun MainScreen(r: Map<String, Reading>, v: VehicleInfo) {
         for ((s, tiles) in sections) {
             item(key = "h:${s.title}", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(s) }
             items(tiles, key = { it.second.key }) { (label, reading) ->
-                ValueTile(label, reading, color = tileColor(reading), container = s.tile, onClick = { help = label to reading.key })
+                if (offline) ValueTile(label, reading, color = MaterialTheme.colorScheme.outline, container = s.tile,
+                    note = "пример · нет связи", onClick = { help = label to reading })
+                else ValueTile(label, reading, color = tileColor(reading), container = s.tile, onClick = { help = label to reading })
             }
         }
-        if (sections.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Muted("Нет данных — подключитесь к адаптеру на вкладке «Связь».") }
     }
 }
 
@@ -121,6 +127,57 @@ private fun SectionHeader(s: Section) {
         Box(Modifier.width(4.dp).height(18.dp).background(s.accent, RoundedCornerShape(2.dp)))
         Text(s.title, style = MaterialTheme.typography.titleMedium, color = s.accent, modifier = Modifier.padding(start = 8.dp))
     }
+}
+
+/**
+ * Typical values of a warm car idling in Park — shown greyed out on the offline cards, so the dashboard
+ * looks like itself before the first connection: value, unit, decimals (units match the live readings).
+ */
+private val SAMPLES: Map<String, Triple<Double, String, Int>> = mapOf(
+    "01.0C" to Triple(700.0, "об/мин", 0),
+    "01.0D" to Triple(0.0, "км/ч", 0),
+    "01.05" to Triple(90.0, "°C", 0),
+    "01.04" to Triple(22.0, "%", 1),
+    "01.11" to Triple(15.7, "%", 1),
+    "01.49" to Triple(16.1, "%", 1),
+    "01.0E" to Triple(12.0, "°", 1),
+    "01.10" to Triple(3.5, "г/с", 2),
+    "01.0B" to Triple(30.0, "кПа", 0),
+    "01.0F" to Triple(30.0, "°C", 0),
+    "01.1F" to Triple(600.0, "с", 0),
+    "01.5C" to Triple(95.0, "°C", 0),
+    "22.1154" to Triple(95.0, "°C", 0),
+    "22.1470" to Triple(250.0, "кПа", 0),
+    "22.119F" to Triple(70.0, "%", 0),
+    "22.1940" to Triple(80.0, "°C", 0),
+    "22.199A" to Triple(1.0, "", 0),
+    "calc.gearRatio" to Triple(4.06, "", 2),
+    "22.1991" to Triple(15.0, "об/мин", 0),
+    "22.1941" to Triple(690.0, "об/мин", 0),
+    "22.1942" to Triple(0.0, "об/мин", 0),
+    "01.2F" to Triple(50.0, "%", 1),
+    "calc.l100" to Triple(11.0, "л/100км", 1),
+    "calc.lph" to Triple(1.1, "л/ч", 2),
+    "calc.trim1" to Triple(1.6, "%", 1),
+    "calc.trim2" to Triple(-0.8, "%", 1),
+    "01.42" to Triple(14.2, "В", 2),
+    "000:ATRV" to Triple(14.1, "В", 1),
+    "01.46" to Triple(20.0, "°C", 0),
+    "01.33" to Triple(100.0, "кПа", 0),
+)
+
+/** An offline card for [key] (a main-screen source or "ecu:source"), keyed like the live reading it stands in for. */
+private fun placeholder(key: String, label: String): Reading {
+    val gm = GmKnown.all.firstOrNull { "%s.%04X".format(it.service, it.did) == key }
+    val full = when {
+        key.contains(':') -> key
+        gm != null -> gm.key
+        key.startsWith("calc.") -> Reading.key(0, key)
+        else -> Reading.key(0x7E8, key)
+    }
+    val sample = SAMPLES[key]
+    return Reading(full, full.substringBefore(':').toInt(16), gm?.displayName ?: label, sample?.first, null,
+        sample?.second ?: "", sample?.third ?: 1)
 }
 
 private fun tileColor(reading: Reading): Color? = when (reading.source) {

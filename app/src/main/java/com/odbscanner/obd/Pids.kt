@@ -209,6 +209,30 @@ object Pids {
 
     fun name(pid: Int) = byPid[pid]?.name ?: "PID %02X".format(pid)
 
+    /**
+     * Splits a multi-PID reply ([data] starts with 0x41) into (pid, bytes). The table length is
+     * checked against what follows: the next byte must be another requested PID or the end.
+     * PIDs 55–58 are two bytes by J1979, but a two-bank GM ECM sends one ("56 80 58 80").
+     */
+    fun splitMulti(data: IntArray, requested: Collection<Int>): List<Pair<Int, IntArray>> {
+        val left = requested.toMutableSet()
+        val out = mutableListOf<Pair<Int, IntArray>>()
+        var i = 1
+        while (i < data.size) {
+            val pid = data[i]
+            if (!left.remove(pid)) break
+            val def = byPid[pid] ?: break
+            val lens = if (pid in 0x55..0x58) listOf(def.len, 1) else listOf(def.len)
+            val len = lens.firstOrNull { l ->
+                val end = i + 1 + l
+                end == data.size || (end < data.size && data[end] in left)
+            } ?: break
+            out += pid to data.copyOfRange(i + 1, i + 1 + len)
+            i += 1 + len
+        }
+        return out
+    }
+
     /** Decodes one PID's data bytes. Unknown PIDs come back as raw hex so nothing is lost. */
     fun decode(ecu: Int, mode: String, pid: Int, d: IntArray): List<Reading> {
         val base = "%s.%02X".format(mode, pid)

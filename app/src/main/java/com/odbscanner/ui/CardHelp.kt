@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +65,7 @@ object CardHelp {
 }
 
 @Composable
-fun CardHelpDialog(label: String, r: Reading, onDismiss: () -> Unit) {
+fun CardHelpDialog(label: String, r: Reading, sample: Boolean = false, onDismiss: () -> Unit) {
     val texts = CardHelp.forSource(r.source)?.let { stringArrayResource(it) }
     val source = when {
         r.source.startsWith("01.") -> stringResource(R.string.help_src_pid, r.source.substring(3, 5), ecuName(r.ecu))
@@ -79,8 +80,12 @@ fun CardHelpDialog(label: String, r: Reading, onDismiss: () -> Unit) {
         title = { Text(label) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text(r.display() + if (r.value != null && r.unit.isNotEmpty()) " ${r.unit}" else "", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-                if (r.value != null && r.min != null && r.max != null) {
+                // A sample: the typical value of an offline card, greyed out and labelled as such.
+                if (r.value != null || r.text != null) Text(r.display() + if (r.value != null && r.unit.isNotEmpty()) " ${r.unit}" else "", fontSize = 28.sp,
+                    fontWeight = FontWeight.SemiBold, color = if (sample) MaterialTheme.colorScheme.outline else Color.Unspecified)
+                if (sample) {
+                    Text(stringResource(R.string.help_sample), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                } else if (r.value != null && r.min != null && r.max != null) {
                     Text(stringResource(R.string.help_range, Reading.fmt(r.min, r.decimals), Reading.fmt(r.max, r.decimals)),
                         style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
                 }

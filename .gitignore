@@ -22,6 +22,8 @@ captures/
 *.aab
 *.keystore
 *.jks
+# Общий debug-ключ проекта (пароль android): одна подпись со всех машин, иначе телефон не даёт обновиться
+!keystore/debug.keystore
 
 # Сессии с машины (VIN, реальные данные)
 sessions/
@@ -33,3 +35,5 @@ __pycache__/
 # OS
 Thumbs.db
 .DS_Store
+
+utils

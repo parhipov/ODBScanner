@@ -6,6 +6,7 @@
     <string name="help_hint">Если не так</string>
     <string name="help_close">Закрыть</string>
     <string name="help_range">мин %1$s · макс %2$s за сессию</string>
+    <string name="help_sample">Пример: типичное значение прогретой машины на холостых. Нет связи с адаптером.</string>
     <string name="help_none">Описания для этого параметра пока нет.</string>
     <string name="help_unverified">Формула из одного источника и на машине не проверена. Сверяйте с чем-то известным, прежде чем доверять.</string>
     <string name="help_src_pid">Стандартный OBD: Mode 01, PID %1$s · %2$s</string>

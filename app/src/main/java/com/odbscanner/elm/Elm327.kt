@@ -4,6 +4,7 @@ import com.odbscanner.transport.Transport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -123,19 +124,46 @@ class Elm327(
         }
     }
 
-    /** After a timeout the chip may still be busy: poke it and wait for the prompt so the next command isn't eaten. */
+    /**
+     * After a timeout the chip may still be busy. A bare CR is not safe: if the prompt is just
+     * late, the chip takes it as "repeat last command" and every later reply is shifted by one
+     * (seen on the car: 06A3 got the 06A2 reply, 06A4 got 06A3...). So: wait for a late prompt;
+     * if none, abort with a non-CR character, then resync with a harmless command.
+     */
     private suspend fun recoverPrompt() {
+        if (waitPrompt(400)) return settle()
+        write("X")
+        waitPrompt(800)
+        // If the chip was idle after all, "X" is still in its line buffer: "XATI" → "?", still a prompt.
+        drain()
+        write("ATI\r")
+        waitPrompt(800)
+        settle()
+    }
+
+    private fun write(s: String) {
         runCatching {
-            transport.output.write("\r".toByteArray())
+            transport.output.write(s.toByteArray(Charsets.US_ASCII))
             transport.output.flush()
         }
-        withTimeoutOrNull(800) {
-            while (true) {
-                val b = rx.receiveCatching().getOrNull() ?: break
-                if (b.toInt().toChar() == '>') break
-            }
+    }
+
+    private suspend fun waitPrompt(ms: Long): Boolean = withTimeoutOrNull(ms) {
+        while (true) {
+            val b = rx.receiveCatching().getOrNull() ?: break
+            if (b.toInt().toChar() == '>') break
         }
-        drain()
+        true
+    } ?: false
+
+    /** Discards whatever is still trickling in until the line is quiet. */
+    private suspend fun settle() {
+        repeat(10) { n ->
+            var got = false
+            while (rx.tryReceive().isSuccess) got = true
+            if (!got && n > 0) return
+            delay(60)
+        }
     }
 
     private fun drain() {
