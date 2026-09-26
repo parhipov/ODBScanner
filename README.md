@@ -1,4 +1,4 @@
-# ODB Scanner
+# OBD Scanner
 
 Android-приложение для чтения данных из машины через ELM327 (Bluetooth). Сделано под Cadillac CTS 2-го поколения (2.8 V6, АКПП 6L50), проверяется и на других машинах (см. «Машины»).
 
@@ -88,7 +88,7 @@ Android-приложение для чтения данных из машины 
 
 ## Volkswagen
 
-Марка — по VIN (`WVW`, `XW8`, `WVG`… — [Make.kt](app/src/main/java/com/odbscanner/obd/Make.kt)). Только чтение: $3E, $22, $1A, $19, $18.
+Марка — по VIN (`WVW`, `XW8`, `WVG`… — [Make.kt](app/src/main/java/com/obdscanner/obd/Make.kt)). Только чтение: $3E, $22, $1A, $19, $18.
 - Поиск блоков: 7E0–7E7 (ответ +8) и 700–775 (UDS VW, ответ +0x6A), пробы `3E00`, `22F187`. Запоминаются по VIN.
 - Идентификация каждого блока: UDS $22 F187/F189/F191/F197/… и кодирование 0600, или KWP $1A 9B/91/86 — в `report.txt` и `scan.csv`.
 - Ошибки всех блоков: UDS `19 02 FF`, для старых блоков KWP `18 02 FF00` (VAG-номер, 16384+N = P0N).
@@ -97,7 +97,7 @@ Android-приложение для чтения данных из машины 
 
 ## GM-параметры
 
-Таблица: [GmKnown.kt](app/src/main/java/com/odbscanner/gm/GmKnown.kt). Источники: Holden VE/VF, списки GM Class 2, OBDb.
+Таблица: [GmKnown.kt](app/src/main/java/com/obdscanner/gm/GmKnown.kt). Источники: Holden VE/VF, списки GM Class 2, OBDb.
 - без пометки — несколько источников или проверено на машине;
 - «(?)» — один источник или расхождения.
 
@@ -120,14 +120,14 @@ VS Code (Ctrl+Shift+P → Tasks: Run Task):
 
 | Задача | Действие |
 |---|---|
-| ODB: Run on Phone (Ctrl+Shift+B) | Сборка, установка, запуск. Выбирает физический телефон; другое устройство — `-Serial` |
-| ODB: Logcat (ODB) | Лог обмена с адаптером (тег `ODB`) и падений |
-| ODB: Unit tests | Тесты |
+| OBD: Run on Phone (Ctrl+Shift+B) | Сборка, установка, запуск. Выбирает физический телефон; другое устройство — `-Serial` |
+| OBD: Logcat (OBD) | Лог обмена с адаптером (тег `OBD`) и падений |
+| OBD: Unit tests | Тесты |
 
 Консоль:
 
 ```
-gradlew assembleDebug        # APK: app/build/outputs/apk/debug/ODBScanner_PavelArkhipov_<версия>.apk
+gradlew assembleDebug        # APK: app/build/outputs/apk/debug/OBDScanner_PavelArkhipov_<версия>.apk
 gradlew installDebug         # сборка и установка
 gradlew testDebugUnitTest    # тесты
 ```
@@ -136,12 +136,12 @@ gradlew testDebugUnitTest    # тесты
 
 ## Демо-режим
 
-Вкладка «Связь» → «Демо-режим»: эмулятор ELM327 v1.5 + CTS 2.8 ([MockTransport.kt](app/src/main/java/com/odbscanner/transport/MockTransport.kt)). Двигатель, АКПП, BCM, многокадровые ответы, ошибки, Mode 06, GM-параметры, трафик для прослушки. На нём же unit-тесты.
+Вкладка «Связь» → «Демо-режим»: эмулятор ELM327 v1.5 + CTS 2.8 ([MockTransport.kt](app/src/main/java/com/obdscanner/transport/MockTransport.kt)). Двигатель, АКПП, BCM, многокадровые ответы, ошибки, Mode 06, GM-параметры, трафик для прослушки. На нём же unit-тесты.
 
 ## Код
 
 ```
-app/src/main/java/com/odbscanner/
+app/src/main/java/com/obdscanner/
 ├── ObdManager.kt    подключение, опрос, цикл чтения, действия
 ├── ObdService.kt    фоновый сервис (запись при выключенном экране)
 ├── MainActivity.kt  заголовок, вкладки

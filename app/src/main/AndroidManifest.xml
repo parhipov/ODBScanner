@@ -11,8 +11,8 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
     <application
-        android:name=".OdbApp"
-        android:label="ODB Scanner"
+        android:name=".ObdApp"
+        android:label="OBD Scanner"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar"

@@ -5,7 +5,7 @@
 }
 
 android {
-    namespace = "com.odbscanner"
+    namespace = "com.obdscanner"
     compileSdk = 35
 
     signingConfigs {
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.odbscanner"
+        applicationId = "com.obdscanner"
         minSdk = 26
         targetSdk = 35
         versionCode = 11
@@ -47,7 +47,7 @@ android {
         val variant = this
         outputs.all {
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "ODBScanner_PavelArkhipov_${variant.versionName}.apk"
+                "OBDScanner_PavelArkhipov_${variant.versionName}.apk"
         }
     }
 }

@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ODBScanner"
+rootProject.name = "OBDScanner"
 include(":app")
