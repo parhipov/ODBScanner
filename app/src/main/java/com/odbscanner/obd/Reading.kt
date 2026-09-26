@@ -40,6 +40,9 @@ data class Reading(
 
 fun ecuName(header: Int): String = when (header) {
     0 -> "Расчёт"
+    // K-line: the header is the ECU's source address (ISO 9141-2 / 14230).
+    0x10 -> "ECM (двигатель)"
+    in 0x01..0xFF -> "ЭБУ %02X".format(header)
     0x7E8 -> "ECM (двигатель)"
     0x7E9 -> "ЭБУ 7E9"
     0x7EA -> "TCM (АКПП)"

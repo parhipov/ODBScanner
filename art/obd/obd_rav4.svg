@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="660" viewBox="0 0 1080 660">
+  <defs>
+    <linearGradient id="well" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#07080a"/><stop offset=".55" stop-color="#101216"/><stop offset="1" stop-color="#15171b"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#57554f"/><stop offset=".75" stop-color="#45443f"/><stop offset="1" stop-color="#2c2c28"/>
+    </linearGradient>
+    <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#252522"/><stop offset="1" stop-color="#3a3935"/>
+    </linearGradient>
+    <linearGradient id="column" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22221f"/><stop offset=".45" stop-color="#64625d"/><stop offset="1" stop-color="#1f1e1c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1b1f"/><stop offset=".6" stop-color="#2d2f35"/><stop offset="1" stop-color="#101114"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2a2c30"/><stop offset=".5" stop-color="#6b7079"/><stop offset="1" stop-color="#26282c"/>
+    </linearGradient>
+    <linearGradient id="rubber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34363b"/><stop offset="1" stop-color="#1b1c1f"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3e3b0"/><stop offset=".5" stop-color="#b89a52"/><stop offset="1" stop-color="#5e4c24"/>
+    </linearGradient>
+    <linearGradient id="dongle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a8be0" stop-opacity=".95"/><stop offset="1" stop-color="#123a72" stop-opacity=".95"/>
+    </linearGradient>
+    <linearGradient id="sill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3b3e44"/><stop offset=".6" stop-color="#8a8f98"/><stop offset="1" stop-color="#2b2d31"/>
+    </linearGradient>
+    <linearGradient id="underDash" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#030304" stop-opacity=".97"/><stop offset=".55" stop-color="#030304" stop-opacity=".6"/>
+      <stop offset="1" stop-color="#030304" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fadeDown" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#fff" stop-opacity="1"/>
+    </linearGradient>
+    <mask id="armFade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#fadeDown)"/></mask>
+    <radialGradient id="cavity" cx=".5" cy=".3" r=".8">
+      <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".8"/>
+    </radialGradient>
+    <radialGradient id="torch" cx="0.2777777777777778" cy="0.5289337022845922" r=".42" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#fff6dc" stop-opacity=".38"/><stop offset=".35" stop-color="#fff6dc" stop-opacity=".15"/>
+      <stop offset="1" stop-color="#fff6dc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx=".5" cy=".45" r=".75">
+      <stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".55"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>
+    <filter id="carpetNoise" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="2" seed="3"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="8"/>
+      <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .05 0"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- Footwell, carpet, door sill -->
+  <rect width="1080" height="660" fill="url(#well)"/>
+  <path d="M0,470 L1080,430 L1080,660 L0,660 Z" fill="#2b2a27"/>
+  <path d="M0,470 L1080,430 L1080,660 L0,660 Z" fill="#fff" filter="url(#carpetNoise)"/>
+  <path d="M0,470 L1080,430 L1080,520 L0,560 Z" fill="#000" opacity=".35"/>
+  <path d="M150,560 L330,540 L350,640 L165,660 Z" fill="#1a1b1e" filter="url(#softShadow)"/>
+  <line x1="165" y1="556" x2="182" y2="650" stroke="#000" stroke-opacity=".5" stroke-width="5"/><line x1="195" y1="553" x2="212" y2="647" stroke="#000" stroke-opacity=".5" stroke-width="5"/><line x1="225" y1="550" x2="242" y2="644" stroke="#000" stroke-opacity=".5" stroke-width="5"/><line x1="255" y1="547" x2="272" y2="641" stroke="#000" stroke-opacity=".5" stroke-width="5"/><line x1="285" y1="544" x2="302" y2="638" stroke="#000" stroke-opacity=".5" stroke-width="5"/><line x1="315" y1="541" x2="332" y2="635" stroke="#000" stroke-opacity=".5" stroke-width="5"/>
+  <path d="M0,380 L100,392 L78,660 L0,660 Z" fill="url(#sill)"/>
+  <path d="M0,380 L100,392 L96,410 L0,400 Z" fill="#000" opacity=".4"/>
+
+  
+    <path d="M631,338 L649,338 L648,476 L632,476 Z" fill="url(#metal)" mask="url(#armFade)"/>
+    <g filter="url(#softShadow)">
+      <rect x="565.0" y="470" width="150" height="82" rx="14" fill="url(#rubber)"/>
+    </g>
+    <line x1="575.0" y1="482.0" x2="705.0" y2="482.0" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="575.0" y1="493.6" x2="705.0" y2="493.6" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="575.0" y1="505.2" x2="705.0" y2="505.2" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="575.0" y1="516.8" x2="705.0" y2="516.8" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="575.0" y1="528.4" x2="705.0" y2="528.4" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="575.0" y1="540.0" x2="705.0" y2="540.0" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+    <rect x="565.0" y="470" width="150" height="82" rx="14" fill="none" stroke="#ffffff" stroke-opacity=".06" stroke-width="2"/>
+    <path d="M851,318 L869,318 L868,446 L852,446 Z" fill="url(#metal)" mask="url(#armFade)"/>
+    <g filter="url(#softShadow)">
+      <rect x="828.0" y="440" width="64" height="170" rx="14" fill="url(#rubber)"/>
+    </g>
+    <line x1="838.0" y1="452.0" x2="882.0" y2="452.0" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="838.0" y1="481.2" x2="882.0" y2="481.2" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="838.0" y1="510.4" x2="882.0" y2="510.4" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="838.0" y1="539.6" x2="882.0" y2="539.6" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="838.0" y1="568.8" x2="882.0" y2="568.8" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/><line x1="838.0" y1="598.0" x2="882.0" y2="598.0" stroke="#0b0c0e" stroke-width="3" stroke-linecap="round" opacity=".55"/>
+    <rect x="828.0" y="440" width="64" height="170" rx="14" fill="none" stroke="#ffffff" stroke-opacity=".06" stroke-width="2"/>
+  <path d="M100,290 Q560,340 1080,252 L1080,412 Q560,480 100,420 Z" fill="url(#underDash)"/>
+
+  <!-- Dash end cap by the door, knee panel with its lip -->
+  <path d="M0,0 L118,0 L104,392 L0,378 Z" fill="url(#side)"/>
+  <path d="M100,0 L1080,0 L1080,262 Q560,350 100,300 Z" fill="url(#panel)"/>
+  <path d="M1080,262 Q560,350 100,300 L100,316 Q560,368 1080,276 Z" fill="#1f1e1c"/>
+  <path d="M1080,259 Q560,347 100,297" fill="none" stroke="#fff" stroke-opacity=".10" stroke-width="3"/>
+  <path d="M100,0 L1080,0 L1080,262 Q560,350 100,300 Z" fill="#fff" filter="url(#grain)"/>
+  <path d="M140,264.0761665229045 Q560,280.04978771510935 1040,228.57926525816174" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="2"/>
+  
+        <rect x="190" y="150" width="200" height="110" rx="18" fill="#4c4b46" stroke="#000" stroke-opacity=".55" stroke-width="3"/>
+        <rect x="192" y="152" width="196" height="106" rx="16" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/>
+        <rect x="264.0" y="238" width="52" height="10" rx="5" fill="#000" opacity=".45"/>
+  
+  
+        <g filter="url(#softShadow)">
+          <rect x="112" y="291.9122176739571" width="96" height="40" rx="12" fill="#111215"/>
+          <rect x="122" y="315.9122176739571" width="76" height="30" rx="10" fill="url(#rubber)"/>
+        </g>
+        <rect x="130" y="319.9122176739571" width="60" height="5" rx="2.5" fill="#fff" opacity=".12"/>
+        <g transform="translate(144,297.9122176739571)" fill="none" stroke="#c9ced6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".85">
+          <path d="M2,20 L2,15 L8,9 L24,9 L30,15 L30,20 Z"/><path d="M8,9 L14,1"/>
+          <circle cx="8" cy="21" r="2.5"/><circle cx="24" cy="21" r="2.5"/>
+        </g>
+
+  <!-- Steering column and the lower part of the wheel -->
+  <path d="M520,0 L680,0 L710,215 Q600,250 490,215 Z" fill="url(#column)" filter="url(#softShadow)"/>
+  <path d="M504,120 Q600,134 696,120" fill="none" stroke="#000" stroke-opacity=".4" stroke-width="2"/>
+  <path d="M560,-10 L640,-10 L670,118 L530,118 Z" fill="#1c1d21" opacity=".9"/>
+  <ellipse cx="600" cy="-190" rx="400" ry="330" fill="none" stroke="#000" stroke-opacity=".45" stroke-width="72" filter="url(#glow)"/>
+  <ellipse cx="600" cy="-196" rx="400" ry="330" fill="none" stroke="url(#rim)" stroke-width="60"/>
+  <ellipse cx="600" cy="-196" rx="400" ry="330" fill="none" stroke="#ffffff" stroke-opacity=".08" stroke-width="3" stroke-dasharray="6 7"/>
+
+  
+  <!-- Torch light on the socket, the socket, highlight ring, adapter and its path -->
+  <rect width="1080" height="660" fill="url(#torch)"/>
+  
+    <g filter="url(#softShadow)">
+      <path d="M231.0,314.0962435078309 L369.0,314.0962435078309
+               L357.0,384.0962435078309 L243.0,384.0962435078309 Z" fill="#141518"/>
+    </g>
+    <path d="M241.0,322.0962435078309 L359.0,322.0962435078309 L347.0,376.0962435078309 L253.0,376.0962435078309 Z"
+          fill="#060607" stroke="#2a2c31" stroke-width="2.0"/>
+    <rect x="259.8" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="270.4" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="280.9" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="291.5" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="302.1" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="312.7" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="323.2" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="333.8" y="337.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="259.8" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="270.4" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="280.9" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="291.5" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="302.1" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="312.7" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="323.2" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/><rect x="333.8" y="353.1" width="6.4" height="8.0" rx="1.5" fill="url(#pin)"/>
+    <rect x="291.0" y="314.0962435078309" width="18.0" height="6.0" fill="#0a0b0c"/>
+  <circle cx="300" cy="349.0962435078309" r="96" fill="none" stroke="#FFC857" stroke-width="14" opacity=".35" filter="url(#glow)"/>
+  <circle cx="300" cy="349.0962435078309" r="96" fill="none" stroke="#FFC857" stroke-width="5"/>
+  
+        <path d="M321,503 Q348,477 314,452"
+              fill="none" stroke="#FFC857" stroke-width="6" stroke-dasharray="2 14" stroke-linecap="round"/>
+        <g transform="translate(314,452) rotate(-7.9)"><path d="M0,-4 l-14,22 l28,0 z" fill="#FFC857"/></g>
+  
+    <g transform="translate(330,564.0962435078309) rotate(-7.9) scale(.85)" filter="url(#softShadow)">
+      <path d="M-50,-58 L50,-58 L42,-30 L-42,-30 Z" fill="#101114"/>
+      <rect x="-70" y="-34" width="140" height="92" rx="16" fill="url(#dongle)"/>
+      <rect x="-70" y="-34" width="140" height="92" rx="16" fill="none" stroke="#9fd0ff" stroke-opacity=".35" stroke-width="2"/>
+      <rect x="-54" y="-20" width="108" height="10" rx="5" fill="#ffffff" opacity=".18"/>
+      <circle cx="44" cy="36" r="6" fill="#5dff8a"/>
+      <circle cx="44" cy="36" r="14" fill="#5dff8a" opacity=".25" filter="url(#glow)"/>
+    </g>
+  <rect width="1080" height="660" fill="url(#vignette)"/>
+</svg>

@@ -13,10 +13,13 @@ import kotlinx.coroutines.withContext
  */
 class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
 
-    suspend fun probeModules(onProgress: (Float, String) -> Unit): List<GmModule> {
+    suspend fun probeModules(
+        all: List<Pair<Int, Int>> = GmModules.candidates,
+        probes: List<String> = listOf("1A90", "22F190", "3E00"),
+        name: (Int) -> String = GmModules::name,
+        onProgress: (Float, String) -> Unit,
+    ): List<GmModule> {
         val found = mutableListOf<GmModule>()
-        val probes = listOf("1A90", "22F190", "3E00")
-        val all = GmModules.candidates
         for ((i, pair) in all.withIndex()) {
             currentCoroutineContext().ensureActive()
             val (req, resp) = pair
@@ -27,7 +30,7 @@ class GmScanner(private val obd: Obd, private val note: (String) -> Unit) {
                 val msg = r.from(resp).firstOrNull()
                 if (msg != null) {
                     val what = if (msg.isNegative) "$p → отказ %02X".format(msg.nrc) else "$p → OK"
-                    found += GmModule(req, resp, GmModules.name(req), what)
+                    found += GmModule(req, resp, name(req), what)
                     note("GM: module %03X answered: %s".format(req, what))
                     break
                 }

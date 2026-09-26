@@ -20,6 +20,10 @@ class CanReply(val messages: List<EcuMessage>, val errors: List<String>, val raw
  *   7E8 06 41 00 BE 3F A8 13          single frame
  *   7E8 10 14 49 02 01 31 47 36       first frame
  *   7E8 21 44 50 35 37 37 58 38       consecutive frame
+ * K-line (ISO 9141-2, ISO 14230) lines are whole messages: 3–4 header bytes, data, checksum:
+ *   48 6B 10 41 00 BE 3E B8 11 C9     ISO 9141-2, ECU 10
+ *   83 F1 10 41 0D 00 D2              ISO 14230, length in the format byte
+ * The header of a K-line message is the ECU's source address (10 = engine).
  */
 object CanParser {
     private val STATUS = listOf("NO DATA", "CAN ERROR", "BUFFER FULL", "STOPPED", "UNABLE TO CONNECT",
@@ -48,6 +52,14 @@ object CanParser {
                 header = compact.substring(0, 8).toLong(16).toInt()
                 body = compact.substring(8)
             } else {
+                val k = kline(line)
+                if (k != null) {
+                    if (k.second.isNotEmpty()) {
+                        done += EcuMessage(k.first, k.second)
+                        if (k.first !in order) order += k.first
+                    } else errors += line
+                    continue
+                }
                 // Headers missing (clone ignored ATH1) — treat as unknown ECU, single frames only.
                 header = 0
                 body = compact
@@ -109,8 +121,40 @@ object CanParser {
             errors += "ISO-TP: неполное сообщение от %03X (%d из %d байт)".format(h, a.size, a.expected)
             if (a.size > 0) done += EcuMessage(h, a.result())
         }
-        val sorted = done.sortedBy { order.indexOf(it.header).let { i -> if (i < 0) Int.MAX_VALUE else i } }
+        val sorted = mergeKlineInfo(done).sortedBy { order.indexOf(it.header).let { i -> if (i < 0) Int.MAX_VALUE else i } }
         return CanReply(sorted, errors, reply.text, reply.timedOut)
+    }
+
+    /**
+     * One K-line message: (source address, data from the service byte) or null if the line isn't one.
+     * A CAN frame without headers starts with its PCI (0x..3F), so 48 6B / 8x F1 can't be mistaken for it.
+     * The trailing checksum (sum of all bytes) is dropped; a line where it doesn't add up is not K-line.
+     */
+    private fun kline(line: String): Pair<Int, IntArray>? {
+        val t = line.trim().split(' ').filter { it.isNotEmpty() }
+        if (t.size < 5 || t.any { it.length != 2 }) return null
+        val b = t.map { it.toIntOrNull(16) ?: return null }
+        val head = when {
+            b[0] == 0x48 && b[1] == 0x6B -> 3
+            b[0] and 0x80 != 0 && b[1] == 0xF1 -> if (b[0] and 0x3F == 0) 4 else 3
+            else -> return null
+        }
+        if (b.dropLast(1).sum() and 0xFF != b.last()) return null
+        return b[2] to b.subList(head, b.size - 1).toIntArray()
+    }
+
+    /**
+     * On K-line a long Mode 09 answer comes as one message per 4 bytes: [49 type seq b1 b2 b3 b4].
+     * Glued into the CAN layout [49 type count payload...] so Mode09.decode reads both the same.
+     */
+    private fun mergeKlineInfo(msgs: List<EcuMessage>): List<EcuMessage> {
+        val parts = msgs.filter { it.header < 0x100 && it.service == 0x49 && it.data.size == 7 }
+        if (parts.size < 2) return msgs
+        val merged = parts.groupBy { it.header to it.data[1] }.map { (key, group) ->
+            val payload = group.sortedBy { it.data[2] }.flatMap { it.data.drop(3) }
+            EcuMessage(key.first, intArrayOf(0x49, key.second, 1) + payload.toIntArray())
+        }
+        return msgs.filter { it !in parts } + merged
     }
 
     /** With spaces on (ATS1) every byte is exactly two digits; the 11-bit header is three. */

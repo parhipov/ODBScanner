@@ -17,7 +17,7 @@ class ElmReply(val command: String, val text: String, val timedOut: Boolean) {
     val lines: List<String> by lazy {
         text.split('\r', '\n')
             .map { it.trim() }
-            .filter { it.isNotEmpty() && it != command && !it.startsWith("SEARCHING") && it != "BUS INIT: ..." }
+            .filter { it.isNotEmpty() && it != command && !it.startsWith("SEARCHING") && !(it.startsWith("BUS INIT") && !it.contains("ERROR")) }
     }
     val isOk get() = !timedOut && lines.any { it == "OK" }
     val isUnknown get() = lines.any { it == "?" }
@@ -49,7 +49,9 @@ class Elm327(
                     if (n < 0) break
                     for (i in 0 until n) rx.trySend(buf[i])
                 }
-            } catch (_: IOException) {
+                log('#', "link closed by the adapter (end of stream)")
+            } catch (e: IOException) {
+                if (alive) log('#', "link lost: ${e.message}")
             } finally {
                 alive = false
                 rx.close()

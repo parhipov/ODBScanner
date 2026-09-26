@@ -4,6 +4,8 @@ package com.odbscanner.elm
 class Obd(val elm: Elm327) {
     /** 3 for 11-bit CAN, 8 for 29-bit. */
     var headerChars = 3
+    /** ISO 9141-2 / ISO 14230: standard OBD only — no CAN headers, filters or physical addressing. */
+    var kline = false
     var currentHeader: Int? = null
         private set
     var responseFilter: Int? = null
@@ -28,6 +30,8 @@ class Obd(val elm: Elm327) {
 
     /** Physical addressing to one module. Tolerates clones that don't know ATCRA. */
     suspend fun target(req: Int, resp: Int) {
+        // ATSH with a CAN id would replace the K-line header (68 6A F1) and break every later request.
+        check(!kline) { "адресация блоков есть только на CAN" }
         if (req in 0x7E0..0x7E7 && resp == req + 8) {
             // Standard OBD ids: the default receive filter and automatic flow control already fit.
             if (customRouting) resetRouting()
@@ -70,6 +74,7 @@ class Obd(val elm: Elm327) {
 
     /** Back to functional OBD broadcast (7DF, all ECUs answer). */
     suspend fun broadcast() {
+        if (kline) return
         if (customRouting) resetRouting()
         if (currentHeader == 0x7DF) return
         at("ATSH7DF")

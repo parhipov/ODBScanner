@@ -36,6 +36,7 @@ import com.odbscanner.ui.ConnectScreen
 import com.odbscanner.ui.DtcScreen
 import com.odbscanner.ui.FuelScreen
 import com.odbscanner.ui.GmScreen
+import com.odbscanner.ui.GuideScreen
 import com.odbscanner.ui.Good
 import com.odbscanner.ui.InfoScreen
 import com.odbscanner.ui.MainScreen
@@ -104,6 +105,7 @@ private fun AppRoot(m: ObdManager) {
             }
             when (tab) {
                 Tab.Connect -> ConnectScreen(m, conn)
+                Tab.Guide -> GuideScreen(vehicle.make)
                 Tab.Main -> MainScreen(readings, vehicle)
                 Tab.Fuel -> FuelScreen(m, readings, vehicle)
                 Tab.All -> AllScreen(readings, vehicle)

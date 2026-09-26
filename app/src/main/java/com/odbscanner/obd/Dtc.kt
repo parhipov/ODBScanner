@@ -40,7 +40,7 @@ object Dtc {
     fun describe(code: String): String = DESCRIPTIONS[code] ?: when {
         code.startsWith("P030") -> "Пропуски зажигания в цилиндре ${code.last()}"
         code.startsWith("P0") -> "Общий код двигателя/трансмиссии"
-        code.startsWith("P1") || code.startsWith("P3") -> "Код производителя (GM)"
+        code.startsWith("P1") || code.startsWith("P3") -> "Код производителя"
         code.startsWith("P2") -> "Общий код (расширенный)"
         code.startsWith("C") -> "Шасси (ABS/подвеска)"
         code.startsWith("B") -> "Кузов"

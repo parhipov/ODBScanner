@@ -156,7 +156,7 @@ class MockCar {
         c == "Z" -> "\r\rELM327 v1.5"
         c == "I" -> "ELM327 v1.5"
         c == "@1" -> "OBDII to RS232 Interpreter"
-        c == "RV" -> "%.1fV".format(13.8 + wave(20.0) * 0.6)
+        c == "RV" -> String.format(java.util.Locale.US, "%.1fV", 13.8 + wave(20.0) * 0.6)
         c == "DPN" -> "A6"
         c == "DP" -> "AUTO, ISO 15765-4 (CAN 11/500)"
         c.startsWith("SH") -> { header = c.substring(2).toInt(16); "OK" }

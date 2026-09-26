@@ -8,6 +8,9 @@ import com.odbscanner.gm.GmModule
 import com.odbscanner.gm.GmScanner
 import com.odbscanner.obd.Dtc
 import com.odbscanner.obd.DtcKind
+import com.odbscanner.obd.Make
+import com.odbscanner.gm.GmModule as Module
+import com.odbscanner.obd.UdsDtcReader
 import com.odbscanner.obd.Mode06
 import com.odbscanner.obd.Mode09
 import com.odbscanner.obd.Pids
@@ -36,6 +39,60 @@ class MockPipelineTest {
         val msg = CanParser.parse(ElmReply("0902", raw, false), 3).messages.single()
         assertEquals(0x7E8, msg.header)
         assertEquals("1G6DM577980123456", Mode09.decode(msg.data))
+    }
+
+    @Test
+    fun parsesVagDtcs() {
+        val reader = UdsDtcReader(open(), vagNumbers = true) { }
+        val mod = Module(0x7E0, 0x7E8, "01", "")
+        // UDS 59 02 FF: P0171 FTB 00 status 09 (failed + confirmed), U0121 status 28 (failed since clear).
+        val uds = reader.parseUds(mod, intArrayOf(0x59, 0x02, 0xFF, 0x01, 0x71, 0x00, 0x09, 0xC1, 0x21, 0x00, 0x28))
+        assertEquals(listOf("P0171 00", "U0121 00"), uds.codes.map { it.full })
+        assertTrue(uds.codes[0].current)
+        assertTrue(!uds.codes[1].current)
+        assertTrue(uds.complete)
+        // KWP 58 02: 0x412C = VAG 16684 = P0300, status 0x60 = present now; 0x462D = VAG 17965, no SAE form.
+        val kwp = reader.parseKwp(mod, intArrayOf(0x58, 0x02, 0x41, 0x2C, 0x60, 0x46, 0x2D, 0x20))
+        assertEquals(listOf("P0300 (VAG 16684)", "VAG 17965"), kwp.codes.map { it.full })
+        assertTrue(kwp.codes[0].current)
+        assertTrue(!kwp.codes[1].current)
+    }
+
+    /** ISO 9141-2 with headers on: header 48 6B <ECU>, data, checksum; the 5 VIN messages are glued back together. */
+    @Test
+    fun parsesKline() {
+        val pid = CanParser.parse(ElmReply("0100", "SEARCHING...\r48 6B 10 41 00 BE 3E B8 11 C9", false), 3)
+        assertEquals(0x10, pid.messages.single().header)
+        assertEquals(listOf(0x41, 0x00, 0xBE, 0x3E, 0xB8, 0x11), pid.messages.single().data.toList())
+        assertTrue(pid.errors.isEmpty())
+        // ISO 14230: the length is in the format byte (83 = 3 data bytes).
+        assertEquals(listOf(0x41, 0x0D, 0x32), CanParser.parse(ElmReply("010D", "83 F1 10 41 0D 32 04", false), 3).messages.single().data.toList())
+        // A wrong checksum is not taken as a K-line message.
+        assertTrue(CanParser.parse(ElmReply("010D", "83 F1 10 41 0D 32 05", false), 3).messages.none { it.header == 0x10 })
+        val vin = listOf(
+            "BUS INIT: ...OK",
+            "48 6B 10 49 02 01 00 00 00 4A 59", "48 6B 10 49 02 02 54 4D 5A 44 4F", "48 6B 10 49 02 03 33 33 56 33 00",
+            "48 6B 10 49 02 04 30 30 30 31 D3", "48 6B 10 49 02 05 32 33 34 35 E1",
+        ).joinToString("\r")
+        val r = CanParser.parse(ElmReply("0902", vin, false), 3)
+        assertTrue(r.errors.isEmpty())
+        assertEquals("JTMZD33V300012345", Mode09.decode(r.messages.single().data))
+        val dtc = CanParser.parse(ElmReply("03", "48 6B 10 43 01 33 00 00 00 00 3A", false), 3).messages.single()
+        assertEquals(listOf("P0133"), Dtc.parse(dtc.data, dtc.header, DtcKind.STORED).map { it.code })
+    }
+
+    @Test
+    fun makeFromVin() {
+        assertEquals(Make.GM, Make.fromVin("1G6DM577980123456"))
+        assertEquals(Make.GM, Make.fromVin("W0L0AHL3575000000"))
+        assertEquals(Make.VAG, Make.fromVin("XW8ZZZ61ZBG000000"))
+        assertEquals(Make.VAG, Make.fromVin("wvwzzz6rzcy000000"))
+        assertEquals(Make.TOYOTA, Make.fromVin("JTMZD33V300012345"))
+        assertEquals(Make.LADA, Make.fromVin("XTAGFK330GY000000"))
+        assertEquals(Make.HYUNDAI, Make.fromVin("Z94CT41DBBR000000"))
+        assertEquals(Make.OTHER, Make.fromVin("SALLAAA1000000000"))
+        assertEquals(Make.OTHER, Make.fromVin(null))
+        assertEquals(Make.OTHER, Make.fromVin(""))
     }
 
     /** Real reply from the car (2026-09-25): the clone lost frame 24 and glued the rest — must not be decoded. */

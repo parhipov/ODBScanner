@@ -6,19 +6,51 @@ import com.odbscanner.obd.Dtc
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
-/** One DTC reported by a GM module through \$A9 (GMW3110 8.18), e.g. "C0035 5A". */
-data class GmDtc(val code: String, val failureType: Int, val status: Int) {
-    val full get() = "%s %02X".format(code, failureType)
+/** Whose status byte it is: GM \$A9, UDS \$19 (ISO 14229) or KWP2000 \$18 (ISO 14230). */
+enum class DtcScheme { GM, UDS, KWP }
+
+/**
+ * One DTC from a module's full memory, e.g. "C0035 5A" (GM \$A9, GMW3110 8.18) or a UDS \$19 code.
+ * [failureType] −1 = the protocol has none (KWP); [vag] — the VAG 5-digit number for KWP codes.
+ */
+data class GmDtc(val code: String, val failureType: Int, val status: Int, val scheme: DtcScheme = DtcScheme.GM, val vag: Int? = null) {
+    val full get() = when {
+        vag != null -> if (code.startsWith("P")) "%s (VAG %05d)".format(code, vag) else "VAG %05d".format(vag)
+        failureType >= 0 -> "%s %02X".format(code, failureType)
+        else -> code
+    }
     val description get() = Dtc.describe(code)
-    val current get() = status and 0x02 != 0
+    val current get() = when (scheme) {
+        DtcScheme.GM -> status and 0x02 != 0
+        DtcScheme.UDS -> status and 0x01 != 0
+        DtcScheme.KWP -> (status shr 5) and 3 == 3
+    }
     val mil get() = status and 0x80 != 0
 
-    /** Status bits (GMW3110): 7 MIL, 6 current since power-up, 4 history, 3 failed since clear, 1 current. */
     val flags: String get() = buildList {
-        if (current) add("активна")
-        if (status and 0x40 != 0 && !current) add("была в этом зажигании")
-        if (status and 0x10 != 0) add("в истории")
-        if (status and 0x08 != 0 && status and 0x12 == 0) add("была после сброса")
+        when (scheme) {
+            // GMW3110: 7 MIL, 6 current since power-up, 4 history, 3 failed since clear, 1 current.
+            DtcScheme.GM -> {
+                if (current) add("активна")
+                if (status and 0x40 != 0 && !current) add("была в этом зажигании")
+                if (status and 0x10 != 0) add("в истории")
+                if (status and 0x08 != 0 && status and 0x12 == 0) add("была после сброса")
+            }
+            // ISO 14229: 0 testFailed, 1 this cycle, 2 pending, 3 confirmed, 5 failed since clear.
+            DtcScheme.UDS -> {
+                if (current) add("активна")
+                if (status and 0x02 != 0 && !current) add("была в этом цикле")
+                if (status and 0x04 != 0) add("ожидает подтверждения")
+                if (status and 0x08 != 0) add("подтверждена")
+                if (status and 0x20 != 0 && status and 0x0F == 0) add("была после сброса")
+            }
+            // ISO 14230: bits 6-5 — 11 present now, 10 intermittent, 01 stored, not present.
+            DtcScheme.KWP -> when ((status shr 5) and 3) {
+                3 -> add("активна")
+                2 -> add("спорадическая")
+                1 -> add("в памяти, сейчас нет")
+            }
+        }
         if (mil) add("Check")
     }.joinToString(", ").ifEmpty { "статус %02X".format(status) }
 }

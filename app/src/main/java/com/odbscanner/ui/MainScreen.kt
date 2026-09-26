@@ -107,7 +107,7 @@ fun MainScreen(r: Map<String, Reading>, v: VehicleInfo) {
         }
         if (gmCodes.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
             val active = gmCodes.count { it.current }
-            Hint("Ошибки блоков GM: ${gmCodes.size}" + (if (active > 0) ", активных $active" else "") + " — см. вкладку «Ошибки»",
+            Hint("Ошибки всех блоков: ${gmCodes.size}" + (if (active > 0) ", активных $active" else "") + " — см. вкладку «Ошибки»",
                 if (active > 0) Bad else Warn)
         }
         for ((s, tiles) in sections) {

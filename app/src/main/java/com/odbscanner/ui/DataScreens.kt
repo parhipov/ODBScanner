@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.odbscanner.ObdManager
 import com.odbscanner.VehicleInfo
 import com.odbscanner.obd.DtcKind
+import com.odbscanner.obd.Make
 import com.odbscanner.obd.Mode09
 import com.odbscanner.obd.Pids
 import com.odbscanner.obd.Reading
@@ -73,9 +74,22 @@ fun DtcScreen(m: ObdManager, v: VehicleInfo, busy: String?) {
             for (f in v.freeze) ReadingRow(f)
         }
         item {
-            SectionTitle("Все блоки GM (\$A9)")
-            Muted("Полная память ошибок каждого блока на HS-CAN: ECM, TCM, ABS, BCM и др., включая коды без Check и тип отказа (как в GDS2). " +
-                "Только чтение. Сначала ищутся модули (~1 мин), дальше несколько секунд на блок. Зажигание включено, машина стоит.")
+            if (v.kline) {
+                SectionTitle("Все блоки")
+                Muted("Машина на K-line: доступны только стандартные ошибки OBD (выше). Память ошибок отдельных блоков ELM327 на K-line не читает.")
+            } else if (v.make == Make.VAG) {
+                SectionTitle("Все блоки VW (UDS \$19 / KWP \$18)")
+                Muted("Полная память ошибок каждого блока, который отвечает на OBD-разъёме: двигатель, КПП, на новых машинах — ABS, подушки, приборка и др. " +
+                    "Только чтение. Сначала ищутся блоки (~2 мин), дальше несколько секунд на блок. Зажигание включено, машина стоит.")
+            } else if (v.make != Make.GM) {
+                SectionTitle("Все блоки (UDS \$19 / KWP \$18)")
+                Muted("Полная память ошибок блоков на стандартных адресах OBD (7E0–7E7): обычно двигатель и КПП, включая коды без Check. " +
+                    "Только чтение, несколько секунд на блок. Зажигание включено, машина стоит.")
+            } else {
+                SectionTitle("Все блоки GM (\$A9)")
+                Muted("Полная память ошибок каждого блока на HS-CAN: ECM, TCM, ABS, BCM и др., включая коды без Check и тип отказа (как в GDS2). " +
+                    "Только чтение. Сначала ищутся модули (~1 мин), дальше несколько секунд на блок. Зажигание включено, машина стоит.")
+            }
             Row(Modifier.padding(8.dp)) {
                 Button(onClick = { m.readAllModulesDtc() }, enabled = busy == null) { Text("Прочитать все блоки") }
             }
@@ -111,6 +125,7 @@ fun InfoScreen(m: ObdManager, v: VehicleInfo, busy: String?) {
             ValueRow("Мульти-PID запросы", if (v.multiPid) "да" else "нет")
             SectionTitle("Автомобиль")
             ValueRow("VIN", v.vin ?: "—")
+            if (v.adapter.isNotEmpty()) ValueRow("Марка (по VIN)", v.make.title)
             Row(Modifier.padding(8.dp)) {
                 OutlinedButton(onClick = { m.rediscover() }, enabled = busy == null) { Text("Опросить заново") }
                 OutlinedButton(onClick = { m.refreshMode06() }, enabled = busy == null, modifier = Modifier.padding(start = 8.dp)) { Text("Mode 06") }
