@@ -26,6 +26,7 @@ import com.odbscanner.obd.Mode06
 import com.odbscanner.obd.Mode09
 import com.odbscanner.obd.Monitor
 import com.odbscanner.obd.Pids
+import com.odbscanner.obd.PollRate
 import com.odbscanner.obd.Reading
 import com.odbscanner.obd.Readiness
 import com.odbscanner.obd.TestResult
@@ -601,7 +602,6 @@ class ObdManager(private val context: Context) {
 
     private suspend fun pollLoop(o: Obd) {
         silentCycles = 0
-        var rotation = 0
         var lastRv = 0L
         var lastFlush = 0L
         var lastMisfire = System.currentTimeMillis()
@@ -610,15 +610,15 @@ class ObdManager(private val context: Context) {
             opMutex.withLock {
                 val tab = activeTab.value
                 val supported = _vehicle.value.supported01.filter { !Pids.isBitmask(it) && it != 0x02 && Pids.byPid[it]?.static != true }
-                val fast = when (tab) {
+                val onScreen = when (tab) {
+                    Tab.Main -> MAIN_PIDS
                     Tab.Fuel -> FUEL_PIDS
-                    Tab.All -> supported
-                    else -> MAIN_PIDS
-                }.filter { it in supported }
-                val slow = supported.filter { it !in fast }
-                val extra = if (slow.isEmpty()) emptyList() else List(minOf(2, slow.size)) { slow[(rotation + it) % slow.size] }
-                rotation += 2
-                val answers = pollPids(o, (fast + extra).distinct())
+                    else -> emptyList()
+                }
+                val pids = PollRate.due(supported, lastPoll, System.currentTimeMillis(), Int.MAX_VALUE, { "01.%02X".format(it) }) {
+                    PollRate.of01(it).let { p -> if (it in onScreen) PollRate.onScreen(p) else p }
+                }
+                val answers = pollPids(o, pids)
                 silentCycles = if (answers == 0) silentCycles + 1 else 0
                 if (o.kline && silentCycles >= 3) {
                     reinitKline(o)
@@ -684,24 +684,19 @@ class ObdManager(private val context: Context) {
         return out.size
     }
 
-    private val gmQueue = ArrayDeque<GmDid>()
-    private var gmRotation = 0
-    private var gmTab: Tab? = null
+    /** When each Mode 01 PID / GM parameter was last asked for, see [PollRate.due]. */
+    private val lastPoll = mutableMapOf<String, Long>()
 
     /**
-     * A few GM parameters per poll cycle so standard PIDs keep their pace: the current screen's
-     * parameters go round constantly, the rest are mixed in three at a time.
+     * A few GM parameters per poll cycle (each one is a separate request) so standard PIDs keep
+     * their pace; which ones — by [GmDid.periodMs], the current screen's slow ones lifted to MEDIUM.
      */
     private suspend fun pollGm(o: Obd, list: List<GmDid>, tab: Tab) {
-        if (tab != gmTab) { gmQueue.clear(); gmTab = tab }
-        if (gmQueue.isEmpty()) {
-            val group = when (tab) { Tab.Main -> "main"; Tab.Fuel -> "fuel"; else -> "" }
-            val (hot, cold) = if (tab == Tab.All) list to emptyList() else list.partition { it.group == group }
-            val extra = if (cold.isEmpty()) emptyList() else List(minOf(3, cold.size)) { cold[(gmRotation + it) % cold.size] }
-            gmRotation += 3
-            gmQueue.addAll((hot + extra).sortedBy { it.req })
-        }
-        val batch = List(minOf(GM_PER_CYCLE, gmQueue.size)) { gmQueue.removeFirst() }
+        val group = when (tab) { Tab.Main -> "main"; Tab.Fuel -> "fuel"; else -> "" }
+        val batch = PollRate.due(list, lastPoll, System.currentTimeMillis(), GM_PER_CYCLE, { it.key }) {
+            if (it.group == group) PollRate.onScreen(it.periodMs) else it.periodMs
+        }.sortedBy { it.req }
+        if (batch.isEmpty()) return
         val sc = GmScanner(o) { session?.note(it) }
         val out = batch.mapNotNull { d -> sc.readRaw(d.req, GmKnown.responseFor(d.req), d.service, d.did)?.let { gmReading(d, it) } }
         o.broadcast()
@@ -1013,10 +1008,12 @@ class ObdManager(private val context: Context) {
         private const val REBOOTING = "Адаптер перезагрузился, переподключаюсь… Если долго — выньте его из разъёма на 5 секунд и вставьте снова."
         private const val REPLUG = "Адаптер отключился и не отвечает по Bluetooth. Выньте его из разъёма на 5 секунд, вставьте и подключитесь снова."
         private const val POLL_TIMEOUT = 1000L
-        private const val GM_PER_CYCLE = 4
+        private const val GM_PER_CYCLE = 5
+        /** Shown on the Main / Fuel screen: read at least every [PollRate.MEDIUM] while it's open. */
         val MAIN_PIDS = listOf(0x0C, 0x0D, 0x05, 0x0F, 0x04, 0x11, 0x42, 0x10, 0x0B, 0x0E, 0x2F, 0x5C, 0x46, 0x33, 0x1F, 0x43, 0x45, 0x49, 0x03, 0x06, 0x07, 0x08, 0x09)
         val FUEL_PIDS = listOf(0x03, 0x04, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10) +
             (0x14..0x1B) + listOf(0x22, 0x23) + (0x24..0x2B) + listOf(0x2E, 0x2F, 0x32) + (0x34..0x3F) +
-            listOf(0x43, 0x44, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5D, 0x5E, 0x9D, 0xA2)
+            listOf(0x43, 0x44, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5D, 0x5E, 0x9D, 0xA2) +
+            listOf(0x11, 0x45, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C)
     }
 }

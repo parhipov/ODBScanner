@@ -79,6 +79,9 @@ fun FuelScreen(m: ObdManager, r: Map<String, Reading>, v: VehicleInfo) {
             rows(r, "01.0E", "22.11A6", "22.125D", "22.12D9", "22.125E", "22.119E")
             SectionTitle("Нагрузка и воздух")
             rows(r, "01.04", "01.43", "01.10", "01.0B", "01.0F", "01.0C", "01.33")
+            SectionTitle("Дроссель и педаль")
+            Muted("Два датчика дросселя и два датчика педали должны меняться вместе; команда — куда ЭБУ ставит заслонку.")
+            rows(r, "01.11", "01.45", "01.47", "01.48", "01.4C", "01.49", "01.4A", "01.4B")
         }
 
         val gmCyl = GM_CYL.map { (label, dids) -> label to dids.map { r.pick(it) } }.filter { (_, v) -> v.any { it != null } }

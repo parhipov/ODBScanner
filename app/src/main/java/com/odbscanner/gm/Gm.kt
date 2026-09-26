@@ -32,6 +32,8 @@ class GmDid(
     val confidence: String,
     /** Which screen needs it most: "main", "fuel" or "other". */
     val group: String,
+    /** How often to read it, see [com.odbscanner.obd.PollRate]. */
+    val periodMs: Long,
     val f: (IntArray) -> Double?,
 ) {
     val key get() = "%03X:%s.%04X".format(req, service, did)
